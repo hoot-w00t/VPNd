@@ -23,11 +23,11 @@ $(BINARY):	$(OBJ)
 	$(CC) $(CFLAGS) -MMD -c $< -o $@
 
 clean:
-	rm -f $(OBJ) $(DEPS)
+	rm -f $(OBJ) $(DEP)
 
 fclean:	clean
 	rm -f $(BINARY)
 
 re:	fclean	all
 
--include $(DEPS)
+-include $(DEP)
