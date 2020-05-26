@@ -106,6 +106,7 @@ void decode_frame(uint8_t *buf, size_t n, peer_t *peer)
     switch (*buf) {
         case HEADER_DATA:
             payload_len = get_payload_size(buf);
+            printf("Received payload of %u bytes\n", payload_len);
             tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
             broadcast_data_to_peers(buf, n, peer);
             break;
@@ -209,6 +210,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     }
     while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
         encode_frame(buf, n, HEADER_DATA);
+        printf("Sending payload of %ld bytes\n", n);
         broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
     }
     free(buf);
