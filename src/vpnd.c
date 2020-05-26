@@ -20,6 +20,7 @@ int vpnd(struct args *args)
     if (*(args->vpn_ip))
         set_device_ip(args->vpn_ip, args->vpn_cidr, args->dev);
 
+    atexit(destroy_peers);
     broadcast_tuntap_device(false);
     if (args->server) {
         tcp_server(args->address, args->port);
