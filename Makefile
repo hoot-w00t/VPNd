@@ -1,4 +1,4 @@
-BINARY	=	tcp_tuntap
+BINARY	=	vpnd
 GITVER	=	$(shell git describe --always --tags --abbrev=10 --dirty)
 
 CC	:=	cc
