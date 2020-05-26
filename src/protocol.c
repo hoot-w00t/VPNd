@@ -2,13 +2,28 @@
 #include <stdio.h>
 #include <string.h>
 
+int is_little_endian(void)
+{
+    int n = 1;
+
+    return (*(char *) &n == 1);
+}
+
 // decode and return payload size from header
 uint32_t get_payload_size(uint8_t *buf)
 {
     uint32_t data_len = 0;
 
-    for (uint8_t i = 0; i < sizeof(uint32_t); ++i) {
-        data_len |= buf[i] << ((3 - i) * 8);
+    if (is_little_endian()) {
+        data_len |= (buf[4] << 24);
+        data_len |= (buf[3] << 16);
+        data_len |= (buf[2] << 8);
+        data_len |= buf[1];
+    } else {
+        data_len |= (buf[1] << 24);
+        data_len |= (buf[2] << 16);
+        data_len |= (buf[3] << 8);
+        data_len |= buf[4];
     }
     return data_len;
 }
@@ -16,15 +31,17 @@ uint32_t get_payload_size(uint8_t *buf)
 // encode payload size into header
 void set_payload_size(uint8_t *buf, uint32_t size)
 {
-    for (uint8_t i = 0; i < 4; ++i) {
-        buf[i + 1] |= ((size >> ((3 - i) * 8)) & 0xff);
+    if (is_little_endian()) {
+        buf[4] = (uint8_t) ((size >> 24) & 0xff);
+        buf[3] = (uint8_t) ((size >> 16) & 0xff);
+        buf[2] = (uint8_t) ((size >> 8) & 0xff);
+        buf[1] = (uint8_t) (size & 0xff);
+    } else {
+        buf[1] = (uint8_t) ((size >> 24) & 0xff);
+        buf[2] = (uint8_t) ((size >> 16) & 0xff);
+        buf[3] = (uint8_t) ((size >> 8) & 0xff);
+        buf[4] = (uint8_t) (size & 0xff);
     }
-}
-
-// get header type
-uint8_t header_type(uint8_t *buf)
-{
-    return *buf;
 }
 
 // send a data frame on socket s

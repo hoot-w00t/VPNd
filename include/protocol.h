@@ -14,17 +14,16 @@
 
 /*
 
-Frame format (big-endian byte order or MSB)
+Frame format
 
 header type == 1 byte
-data_len == 4 bytes
+data_len == 4 bytes (big-endian)
 payload == data_len bytes
 
 */
 
 uint32_t get_payload_size(uint8_t *buf);
 void set_payload_size(uint8_t *buf, uint32_t size);
-uint8_t header_type(uint8_t *buf);
 void encode_frame(uint8_t *buf, size_t data_len, uint8_t type);
 
 #endif
