@@ -1,9 +1,16 @@
 #include "args.h"
+#include "vpnd.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
+
+// print program version
+void print_version(void)
+{
+    printf("VPN daemon version %s\n", GITVER);
+}
 
 // print program usage to stdout
 void print_usage(const char *bin_name)
