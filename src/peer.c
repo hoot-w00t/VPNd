@@ -1,7 +1,7 @@
 #include "interface.h"
 #include "attributes.h"
 #include "peer.h"
-#include "vpnd.h"
+#include "protocol.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -102,12 +102,15 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
 void *peer_receive(void *arg)
 {
     peer_t *peer = (peer_t *) arg;
-    uint8_t buf[VPND_BUFSIZE];
+    vpnd_frame_t frame;
+    uint8_t buf[FRAME_DATA_MAXSIZE];
     ssize_t n = 0;
 
-    while ((n = recv(peer->s, buf, VPND_BUFSIZE, MSG_NOSIGNAL)) > 0) {
-        tuntap_write(buf, n);
-        broadcast_data_to_peers(buf, n, peer);
+    while ((n = recv(peer->s, buf, FRAME_DATA_MAXSIZE, MSG_NOSIGNAL)) > 0) {
+        if (decode_frame(buf, n, &frame)) {
+            tuntap_write(frame.data, frame.data_len);
+            broadcast_data_to_peers(buf, n, peer);
+        }
     }
     return NULL;
 }
@@ -175,11 +178,13 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 // connected peers
 void *_broadcast_tuntap_device(UNUSED void *arg)
 {
-    uint8_t buf[VPND_BUFSIZE];
+    uint8_t framebuf[sizeof(vpnd_frame_t)];
+    vpnd_frame_t frame;
     ssize_t n = 0;
 
-    while ((n = tuntap_read(buf, VPND_BUFSIZE)) > 0) {
-        broadcast_data_to_peers(buf, n, NULL);
+    while ((frame.data_len = tuntap_read(frame.data, sizeof(frame.data))) > 0) {
+        n = encode_frame(framebuf, sizeof(vpnd_frame_t), &frame);
+        broadcast_data_to_peers(framebuf, n, NULL);
     }
     exit(EXIT_FAILURE);
     return NULL;
