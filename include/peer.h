@@ -4,9 +4,6 @@
 #ifndef _VPND_PEER
 #define _VPND_PEER
 
-peer_t *create_peer(int s, bool is_client);
-void destroy_peer(peer_t *peer);
-void append_peer(peer_t *peer);
 void destroy_peers(void);
 void *peer_receive(void *arg);
 void *_peer_connection(void *arg);
