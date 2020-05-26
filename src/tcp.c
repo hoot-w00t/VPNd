@@ -60,7 +60,7 @@ int tcp_accept_connection(int s)
         fprintf(stderr, "Connection failed: %s\n", strerror(errno));
         return -1;
     }
-    peer_connection(peer, false, false);
+    peer_connection((struct sockaddr_in *) &sin, peer, false, false);
     return 0;
 }
 
@@ -113,8 +113,6 @@ int tcp_client(const char *address, uint16_t port)
         return -1;
     }
 
-    printf("Connected to %s:%u\n", address, port);
-
-    peer_connection(s, true, true);
+    peer_connection(&sin, s, true, true);
     return 0;
 }

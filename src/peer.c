@@ -11,26 +11,49 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 
 static peer_t *peers = NULL;
 
+// initialize peer with NULL values
+void initialize_peer(peer_t *peer)
+{
+    peer->address = NULL;
+    peer->port = 0;
+    peer->s = -1;
+    peer->is_client = false;
+    peer->alive = false;
+    peer->next = NULL;
+}
+
+// set peer information
+void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
+{
+    free(peer->address);
+    peer->address = strdup(inet_ntoa(sin->sin_addr));
+    peer->port = sin->sin_port;
+    peer->s = s;
+    peer->is_client = is_client;
+    peer->alive = true;
+    peer->next = NULL;
+}
+
 // allocate and initialize a peer
-peer_t *create_peer(int s, bool is_client)
+peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client)
 {
     peer_t *peer = malloc(sizeof(peer_t));
 
     if (!peer)
         return NULL;
-    peer->s = s;
-    peer->is_client = is_client;
-    peer->alive = true;
-    peer->next = NULL;
+    initialize_peer(peer);
+    set_peer_info(peer, sin, s, is_client);
     return peer;
 }
 
 // free peer
 void destroy_peer(peer_t *peer)
 {
+    free(peer->address);
     free(peer);
 }
 
@@ -50,20 +73,13 @@ void destroy_peers(void)
 // add peer to the list, if all slots are free then allocate one
 // if a slot is free (alive == false) it is set to the new peer's
 // information
-peer_t *add_peer(int s, bool is_client)
+peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
 {
     peer_t *last = peers;
 
-    if (!peers) {
-        peers = create_peer(s, is_client);
-        return peers;
-    }
-
     while (last) {
         if (last->alive == false) {
-            last->s = s;
-            last->is_client = is_client;
-            last->alive = true;
+            set_peer_info(last, sin, s, is_client);
             return last;
         }
         if (last->next == NULL) {
@@ -73,8 +89,13 @@ peer_t *add_peer(int s, bool is_client)
         }
     }
 
-    last->next = create_peer(s, is_client);
-    return last->next;
+    peer_t *peer = create_peer(sin, s, is_client);
+    if (!peers) {
+        peers = peer;
+    } else {
+        last->next = peer;
+    }
+    return peer;
 }
 
 // receive data from remote peer and write it to the tun/tap device
@@ -97,26 +118,36 @@ void *_peer_connection(void *arg)
     peer_t *peer = (peer_t *) arg;
     pthread_t thread_recv;
 
-    printf("Peer connected\n");
+    printf("Established connection with %s:%u\n",
+           peer->address,
+           peer->port);
+
     pthread_create(&thread_recv, NULL, peer_receive, peer);
     pthread_join(thread_recv, NULL);
+
     peer->alive = false;
     close(peer->s);
-    printf("Peer disconnected\n");
+
+    printf("Lost connection with %s:%u\n",
+           peer->address,
+           peer->port);
+
     return NULL;
 }
 
 // handle a peer connection
-void peer_connection(int s, bool is_client, bool block)
+void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
 {
-    peer_t *peer = add_peer(s, is_client);
+    peer_t *peer = add_peer(sin, s, is_client);
     pthread_t peer_thread;
 
     if (!peer) {
         fprintf(stderr, "Could not allocate memory for peer\n");
         return;
     }
+
     pthread_create(&peer_thread, NULL, _peer_connection, peer);
+
     if (block) {
         pthread_join(peer_thread, NULL);
     } else {
