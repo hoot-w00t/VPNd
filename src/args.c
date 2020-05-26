@@ -19,7 +19,7 @@ void print_usage(const char *bin_name)
     size_t bin_len = strlen(bin_name);
 
     printf("Usage: %s [-h] [-v] [-s]\n", bin_name);
-    printf("       ");
+    printf("        ");
     for (size_t i = 0; i < bin_len; ++i)
         printf(" ");
     printf("[-m {mode}] [-p {port}] address\n");
