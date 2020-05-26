@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include <stddef.h>
+#include <sys/types.h>
 
 #ifndef _VPND_INTERFACE
 #define _VPND_INTERFACE
