@@ -132,7 +132,7 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 
 // continuously read from the tun/tap interface and send the read data to all
 // connected peers
-void *_broadcast_dev_to_peers(UNUSED void *arg)
+void *_broadcast_tuntap_device(UNUSED void *arg)
 {
     uint8_t buf[VPND_BUFSIZE];
     ssize_t n = 0;
@@ -140,16 +140,17 @@ void *_broadcast_dev_to_peers(UNUSED void *arg)
     while ((n = tuntap_read(buf, VPND_BUFSIZE)) > 0) {
         broadcast_data_to_peers(buf, n, NULL);
     }
+    exit(EXIT_FAILURE);
     return NULL;
 }
 
 // continuously read from the tun/tap interface and send the read data to all
 // connected peers
-void broadcast_dev_to_peers(bool block)
+void broadcast_tuntap_device(bool block)
 {
     pthread_t broadcast_thread;
 
-    pthread_create(&broadcast_thread, NULL, _broadcast_dev_to_peers, NULL);
+    pthread_create(&broadcast_thread, NULL, _broadcast_tuntap_device, NULL);
     if (block) {
         pthread_join(broadcast_thread, NULL);
     } else {
