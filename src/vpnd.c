@@ -3,6 +3,7 @@
 #include "tcp.h"
 #include "interface.h"
 #include "vpnd.h"
+#include "peer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,6 +26,7 @@ int main(int ac, char **av)
     if (args.verbose)
         printf("Opened device: %s\n", args.dev);
 
+    broadcast_dev_to_peers(false);
     if (args.server) {
         tcp_server(args.address, args.port);
     } else {

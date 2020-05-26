@@ -10,7 +10,6 @@ SRC	=	src/vpnd.c			\
 		src/args.c			\
 		src/tcp.c			\
 		src/interface.c		\
-		src/connection.c	\
 		src/peer.c
 
 OBJ	=	$(SRC:.c=.o)

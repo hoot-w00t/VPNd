@@ -60,10 +60,7 @@ int tcp_accept_connection(int s)
         fprintf(stderr, "Connection failed: %s\n", strerror(errno));
         return -1;
     }
-    printf("Peer connected.\n");
-    peer_connection(peer, false);
-    printf("Peer disconnected.\n");
-    close(peer);
+    peer_connection(peer, false, false);
     return 0;
 }
 
@@ -76,7 +73,10 @@ int tcp_server(const char *bind_address, uint16_t bind_port)
         return -1;
 
     printf("Listening for incoming connections...\n");
-    tcp_accept_connection(s);
+    while (true)
+        tcp_accept_connection(s);
+
+    printf("Closing server...\n");
     close(s);
     return 0;
 }
@@ -115,7 +115,6 @@ int tcp_client(const char *address, uint16_t port)
 
     printf("Connected to %s:%u\n", address, port);
 
-    peer_connection(s, true);
-    close(s);
+    peer_connection(s, true, true);
     return 0;
 }

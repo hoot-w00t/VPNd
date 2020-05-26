@@ -14,10 +14,12 @@ struct args {
     uint16_t port;      // port to connect to or listen on
 };
 
-typedef struct connection connection_t;
-struct connection {
+typedef struct peer peer_t;
+struct peer {
     int s;                     // socket descriptor
     bool is_client;            // is it a client or a server connection
+    bool alive;                // is this peer connected
+    struct peer *next;         // next peer in the linked list
 };
 
 #endif
