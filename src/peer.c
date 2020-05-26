@@ -123,11 +123,6 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
         }
         peer = peer->next;
     }
-    printf("Broadcasted %ld bytes (%s) to %lu %s\n",
-            n,
-            exclude ? "peer" : "local",
-            sent_to,
-            sent_to == 1 ? "peer" : "peers");
 }
 
 // continuously read from the tun/tap interface and send the read data to all
