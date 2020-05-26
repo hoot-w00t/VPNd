@@ -101,17 +101,17 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
 // decode frame and process information
 void decode_frame(uint8_t *buf, size_t n, peer_t *peer)
 {
-    uint32_t payload_len = 0;
+    uint32_t payload_len = get_payload_size(buf);
+
+    if (payload_len != n - FRAME_HEADER_SIZE) {
+        fprintf(stderr, "Received invalid payload from %s:%u\n",
+                        peer->address,
+                        peer->port);
+        return;
+    }
 
     switch (*buf) {
         case HEADER_DATA:
-            payload_len = get_payload_size(buf);
-            if (payload_len > FRAME_PAYLOAD_MAXSIZE) {
-                fprintf(stderr, "Received invalid payload length from %s:%u\n",
-                                peer->address,
-                                peer->port);
-                break;
-            }
             tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
             broadcast_data_to_peers(buf, n, peer);
             break;
@@ -186,6 +186,21 @@ void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
     }
 }
 
+void sendall(int s, uint8_t *data, size_t n, int flags)
+{
+    ssize_t _n = 0;
+    size_t sent = 0;
+
+    while (sent < n) {
+        _n = send(s, &data[sent], n - sent, flags);
+        if (_n <= 0) {
+            fprintf(stderr, "Socket error: Could not send all the data\n");
+            return;
+        }
+        sent += _n;
+    }
+}
+
 // send n bytes of data to all peers if exclude is NULL
 // otherwise do not send to the excluded peer
 void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
@@ -195,7 +210,7 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 
     while (peer) {
         if (peer->alive && peer != exclude) {
-            send(peer->s, data, n, MSG_NOSIGNAL);
+            sendall(peer->s, data, n, MSG_NOSIGNAL);
             sent_to += 1;
         }
         peer = peer->next;
