@@ -19,7 +19,6 @@ void *peer_receive(void *arg)
 
     while ((n = recv(conn->s, buf, VPND_BUFSIZE, 0)) > 0) {
         tuntap_write(buf, n);
-        //printf("Received %ld bytes\n", n);
     }
     return NULL;
 }
@@ -33,7 +32,6 @@ void *peer_send(void *arg)
 
     while ((n = tuntap_read(buf, VPND_BUFSIZE)) > 0) {
         send(conn->s, buf, n, 0);
-        //printf("Sent %ld bytes\n", n);
     }
     return NULL;
 }
