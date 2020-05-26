@@ -53,7 +53,7 @@ int tuntap_open(char *dev, bool tap_mode)
     memset(&ifr, 0, sizeof(ifr));
     ifr.ifr_flags = tap_mode ? IFF_TAP : IFF_TUN;
     if (dev)
-        strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+        strncpy(ifr.ifr_name, dev, IFNAMSIZ - 1);
 
     if ((err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0) {
         fprintf(stderr, "Could not configure %s device %s: %s\n",
