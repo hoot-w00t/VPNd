@@ -8,7 +8,7 @@ uint32_t get_payload_size(uint8_t *buf)
     uint32_t data_len = 0;
 
     for (uint8_t i = 0; i < sizeof(uint32_t); ++i) {
-        data_len |= buf[i] << ((sizeof(uint32_t) - 1 - i) * 8);
+        data_len |= buf[i] << ((3 - i) * 8);
     }
     return data_len;
 }
@@ -16,8 +16,8 @@ uint32_t get_payload_size(uint8_t *buf)
 // encode payload size into header
 void set_payload_size(uint8_t *buf, uint32_t size)
 {
-    for (uint8_t i = 0; i < sizeof(uint32_t); ++i) {
-        buf[i + 1] = (size >> ((sizeof(uint32_t) - 1 - i) * 8)) & 0xff;
+    for (uint8_t i = 0; i < 4; ++i) {
+        buf[i + 1] |= ((size >> ((3 - i) * 8)) & 0xff);
     }
 }
 
