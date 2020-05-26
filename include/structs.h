@@ -10,6 +10,8 @@ struct args {
     bool tap_mode;      // is the interface TAP or TUN
     bool server;        // do we run in server or client mode
     char dev[IFNAMSIZ]; // device name
+    char vpn_ip[16];    // vpn IP address
+    uint8_t vpn_cidr;   // vpn CIDR mask
     char *address;      // address to connect or listen to
     uint16_t port;      // port to connect to or listen on
 };
