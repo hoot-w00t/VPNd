@@ -98,19 +98,41 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
     return peer;
 }
 
+// decode frame and process information
+void decode_frame(uint8_t *buf, size_t n, peer_t *peer)
+{
+    uint32_t payload_len = 0;
+
+    switch (*buf) {
+        case HEADER_DATA:
+            payload_len = get_payload_size(buf);
+            tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
+            broadcast_data_to_peers(buf, n, peer);
+            break;
+
+        case HEADER_KEEPALIVE:
+            printf("Keep Alive received from %s:%u\n", peer->address, peer->port);
+            break;
+
+        default:
+            printf("Invalid header type: %x\n", *buf);
+            break;
+    }
+}
+
 // receive data from remote peer and write it to the tun/tap device
 void *peer_receive(void *arg)
 {
     peer_t *peer = (peer_t *) arg;
-    vpnd_frame_t frame;
-    uint8_t buf[FRAME_DATA_MAXSIZE];
+    uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
     ssize_t n = 0;
 
-    while ((n = recv(peer->s, buf, FRAME_DATA_MAXSIZE, MSG_NOSIGNAL)) > 0) {
-        if (decode_frame(buf, n, &frame)) {
-            tuntap_write(frame.data, frame.data_len);
-            broadcast_data_to_peers(buf, n, peer);
-        }
+    if (!buf) {
+        fprintf(stderr, "Could not allocate memory for peer\n");
+        return NULL;
+    }
+    while ((n = recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL)) >= (signed) FRAME_HEADER_SIZE) {
+        decode_frame(buf, n, peer);
     }
     return NULL;
 }
@@ -178,14 +200,18 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 // connected peers
 void *_broadcast_tuntap_device(UNUSED void *arg)
 {
-    uint8_t framebuf[sizeof(vpnd_frame_t)];
-    vpnd_frame_t frame;
+    uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
     ssize_t n = 0;
 
-    while ((frame.data_len = tuntap_read(frame.data, sizeof(frame.data))) > 0) {
-        n = encode_frame(framebuf, sizeof(vpnd_frame_t), &frame);
-        broadcast_data_to_peers(framebuf, n, NULL);
+    if (!buf) {
+        fprintf(stderr, "Could not allocate memory for *databuf\n");
+        exit(EXIT_FAILURE);
     }
+    while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
+        encode_frame(buf, n, HEADER_DATA);
+        broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
+    }
+    free(buf);
     exit(EXIT_FAILURE);
     return NULL;
 }

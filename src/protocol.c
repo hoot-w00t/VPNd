@@ -2,7 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
-uint32_t get_frame_data_len(uint8_t *buf)
+// decode and return payload size from header
+uint32_t get_payload_size(uint8_t *buf)
 {
     uint32_t data_len = 0;
 
@@ -12,33 +13,23 @@ uint32_t get_frame_data_len(uint8_t *buf)
     return data_len;
 }
 
-void set_frame_data_len(uint8_t *buf, vpnd_frame_t *frame)
+// encode payload size into header
+void set_payload_size(uint8_t *buf, uint32_t size)
 {
     for (uint8_t i = 0; i < sizeof(uint32_t); ++i) {
-        buf[i] = (frame->data_len >> ((sizeof(uint32_t) - 1 - i) * 8)) & 0xff;
+        buf[i + 1] = (size >> ((sizeof(uint32_t) - 1 - i) * 8)) & 0xff;
     }
 }
 
-// decode raw frame stored in buf and put decoded data in *frame
-int decode_frame(uint8_t *buf, size_t bufsize, vpnd_frame_t *frame)
+// get header type
+uint8_t header_type(uint8_t *buf)
 {
-    if (bufsize <= sizeof(uint32_t)) {
-        fprintf(stderr, "Invalid frame header: size too short\n");
-        return -1;
-    }
-
-    frame->data_len = get_frame_data_len(buf);
-    memcpy(frame->data, &buf[sizeof(uint32_t)], frame->data_len);
-    return 0;
+    return *buf;
 }
 
-// encode data in *frame into *buf, if there is more data than there is
-// space in *buf it will be lost
-size_t encode_frame(uint8_t *buf, size_t bufsize, vpnd_frame_t *frame)
+// send a data frame on socket s
+void encode_frame(uint8_t *buf, size_t data_len, uint8_t type)
 {
-    set_frame_data_len(buf, frame);
-    for (size_t i = sizeof(uint32_t); i < bufsize; ++i) {
-        buf[i] = frame->data[i - sizeof(uint32_t)];
-    }
-    return sizeof(uint32_t) + frame->data_len;
+    *buf = type;
+    set_payload_size(buf, data_len);
 }

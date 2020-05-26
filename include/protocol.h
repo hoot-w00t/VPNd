@@ -5,25 +5,26 @@
 #ifndef _VPND_PROTOCOL
 #define _VPND_PROTOCOL
 
-#define FRAME_DATA_MAXSIZE 2048
-#define FRAME_MAXSIZE (FRAME_DATA_MAXSIZE + sizeof(uint32_t))
+#define FRAME_HEADER_SIZE     (1 + sizeof(uint32_t))
+#define FRAME_PAYLOAD_MAXSIZE 2048
+#define FRAME_MAXSIZE (FRAME_HEADER_SIZE + FRAME_PAYLOAD_MAXSIZE)
+
+#define HEADER_KEEPALIVE 0b1
+#define HEADER_DATA      0b10
 
 /*
 
 Frame format (big-endian byte order or MSB)
 
+header type == 1 byte
 data_len == 4 bytes
-data == data_len bytes
+payload == data_len bytes
 
 */
 
-struct vpnd_frame {
-    uint8_t data[FRAME_DATA_MAXSIZE];      // actual data
-    uint32_t data_len;  // length of data
-};
-typedef struct vpnd_frame vpnd_frame_t;
-
-int decode_frame(uint8_t *buf, size_t bufsize, vpnd_frame_t *frame);
-size_t encode_frame(uint8_t *buf, size_t bufsize, vpnd_frame_t *frame);
+uint32_t get_payload_size(uint8_t *buf);
+void set_payload_size(uint8_t *buf, uint32_t size);
+uint8_t header_type(uint8_t *buf);
+void encode_frame(uint8_t *buf, size_t data_len, uint8_t type);
 
 #endif
