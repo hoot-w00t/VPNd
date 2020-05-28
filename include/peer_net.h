@@ -6,6 +6,7 @@
 void sendall(int s, uint8_t *data, size_t n, int flags);
 void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer);
 void broadcast_keepalive(void);
+void broadcast_close(void);
 ssize_t receive_frame(uint8_t *buf, size_t n, peer_t *peer);
 void *peer_receive(void *arg);
 

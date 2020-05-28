@@ -12,7 +12,8 @@ SRC	=	src/vpnd.c			\
 		src/interface.c		\
 		src/peer.c			\
 		src/peer_net.c		\
-		src/protocol.c
+		src/protocol.c		\
+		src/signals.c
 
 OBJ	=	$(SRC:.c=.o)
 DEP	=	$(SRC:.c=.d)

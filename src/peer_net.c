@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <pthread.h>
 
 // make sure that all the data is sent to the socket s
 void sendall(int s, uint8_t *data, size_t n, int flags)
@@ -40,6 +41,14 @@ void broadcast_keepalive(void)
     uint8_t keepalive[5] = {HEADER_KEEPALIVE, 0, 0, 0, 0};
 
     broadcast_data_to_peers(keepalive, sizeof(keepalive), NULL);
+}
+
+// broadcast a close packet to all connected peers
+void broadcast_close(void)
+{
+    uint8_t brd_close[5] = {HEADER_CLOSE, 0, 0, 0, 0};
+
+    broadcast_data_to_peers(brd_close, sizeof(brd_close), NULL);
 }
 
 // decode frame and process information
@@ -86,6 +95,10 @@ ssize_t receive_frame(uint8_t *buf, size_t n, peer_t *peer)
             printf("Received keep alive from %s:%u\n", peer->address, peer->port);
             break;
 
+        case HEADER_CLOSE:
+            printf("Received close from %s:%u\n", peer->address, peer->port);
+            return -1;
+
         default:
             printf("Received invalid header type: %x\n", *buf);
             break;
@@ -104,5 +117,6 @@ void *peer_receive(void *arg)
         return NULL;
     }
     while (receive_frame(buf, FRAME_MAXSIZE, peer) >= 0);
-    return NULL;
+    free(buf);
+    pthread_exit(NULL);
 }

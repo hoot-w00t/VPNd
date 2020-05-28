@@ -12,6 +12,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+static int server_socket = -1;
+
 // create socket and bind it to an address and port
 // returns the file descriptor or -1 in case of an error
 int tcp_bind(const char *bind_address, uint16_t bind_port, int backlog)
@@ -25,60 +27,75 @@ int tcp_bind(const char *bind_address, uint16_t bind_port, int backlog)
     sin.sin_addr.s_addr = inet_addr(bind_address);
 
     // Create socket
-    int s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s == -1) {
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1) {
         fprintf(stderr, "Could not create server socket: %s\n", strerror(errno));
         return -1;
     }
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)); // set reuseaddr option
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)); // set reuseaddr option
 
     // Bind to address and port
-    if (bind(s, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
+    if (bind(server_socket, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
         fprintf(stderr, "Could not bind to %s:%u: %s\n", bind_address, bind_port, strerror(errno));
-        close(s);
+        close(server_socket);
+        server_socket = -1;
         return -1;
     }
 
     // Start listening to connections
-    if (listen(s, backlog) == -1) {
+    if (listen(server_socket, backlog) == -1) {
         fprintf(stderr, "Could not start listening: %s\n", strerror(errno));
-        close(s);
+        close(server_socket);
+        server_socket = -1;
         return -1;
     }
 
-    return s;
+    return server_socket;
 }
 
 // accept an incoming TCP connection on a listening socket
-int tcp_accept_connection(int s)
+int tcp_accept_connection(void)
 {
     struct sockaddr sin;
     socklen_t sin_len = sizeof(struct sockaddr);
-    int peer = accept(s, &sin, &sin_len);
+    int peer = -1;
+
+    if (server_socket < 0)
+        return -1;
+
+    peer = accept(server_socket, &sin, &sin_len);
 
     if (peer == -1) {
         fprintf(stderr, "Connection failed: %s\n", strerror(errno));
         return -1;
     }
+
     peer_connection((struct sockaddr_in *) &sin, peer, false, false);
     return 0;
 }
 
 // create a TCP server and accept incoming connections
-int tcp_server(const char *bind_address, uint16_t bind_port)
+int tcp_server(const char *bind_address, uint16_t bind_port, int backlog)
 {
-    int s = tcp_bind(bind_address, bind_port, 1);
-
-    if (s == -1)
+    if (tcp_bind(bind_address, bind_port, backlog) == -1)
         return -1;
 
     printf("Listening for incoming connections...\n");
-    while (true)
-        tcp_accept_connection(s);
+    while (server_socket > 0)
+        tcp_accept_connection();
 
-    printf("Closing server...\n");
-    close(s);
+    tcp_server_close();
     return 0;
+}
+
+// close a TCP server
+void tcp_server_close(void)
+{
+    if (server_socket > 0) {
+        printf("Closing server...\n");
+        close(server_socket);
+        server_socket = -1;
+    }
 }
 
 // create a TCP connection to a remote server

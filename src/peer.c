@@ -57,8 +57,10 @@ peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client)
 // free peer
 void destroy_peer(peer_t *peer)
 {
-    if (peer->alive)
+    if (peer->alive) {
         close(peer->s);
+        while (peer->alive);
+    }
     pthread_mutex_destroy(&peer->mutex);
     free(peer->address);
     free(peer);
@@ -70,6 +72,9 @@ void destroy_peers(void)
     peer_t *current = peers;
     peer_t *next = NULL;
 
+    peers = NULL;
+    if (current)
+        printf("Closing all connections...\n");
     while (current) {
         next = current->next;
         destroy_peer(current);
@@ -126,7 +131,7 @@ void *_peer_connection(void *arg)
            peer->address,
            peer->port);
 
-    return NULL;
+    pthread_exit(NULL);
 }
 
 // handle a peer connection
@@ -181,20 +186,16 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
         broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
     }
     free(buf);
-    exit(EXIT_FAILURE);
-    return NULL;
+    fprintf(stderr, "Local TUN/TAP packets will no longer be broadcasted to peers\n");
+    pthread_exit(NULL);
 }
 
 // continuously read from the tun/tap interface and send the read data to all
 // connected peers
-void broadcast_tuntap_device(bool block)
+pthread_t broadcast_tuntap_device(void)
 {
-    pthread_t broadcast_thread;
+    pthread_t thread;
 
-    pthread_create(&broadcast_thread, NULL, _broadcast_tuntap_device, NULL);
-    if (block) {
-        pthread_join(broadcast_thread, NULL);
-    } else {
-        pthread_detach(broadcast_thread);
-    }
+    pthread_create(&thread, NULL, _broadcast_tuntap_device, NULL);
+    return thread;
 }

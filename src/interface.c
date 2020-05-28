@@ -29,6 +29,7 @@ int tuntap_fildes(void)
 void tuntap_close(void)
 {
     if (if_fd > 0) {
+        printf("Closing TUN/TAP device...\n");
         close(if_fd);
         if_fd = -1;
         pthread_mutex_destroy(&tuntap_mutex);
