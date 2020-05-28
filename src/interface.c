@@ -17,12 +17,19 @@
 // https://github.com/torvalds/linux/blob/master/Documentation/networking/tuntap.txt
 
 static int if_fd = -1;
+static bool if_tap = false;
 static pthread_mutex_t tuntap_mutex;
 
 // return the tun/tap device file descriptor
 int tuntap_fildes(void)
 {
     return if_fd;
+}
+
+// return whether we are running in tap or tun mode
+bool tuntap_tap_mode(void)
+{
+    return if_tap;
 }
 
 // close tun/tap device
@@ -72,6 +79,7 @@ int tuntap_open(char *dev, bool tap_mode)
 
     strcpy(dev, ifr.ifr_name);
     if_fd = fd;
+    if_tap = tap_mode;
     pthread_mutex_init(&tuntap_mutex, NULL);
     atexit(tuntap_close);
 

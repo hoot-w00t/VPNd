@@ -1,6 +1,8 @@
 #include "peer.h"
 #include "protocol.h"
 #include "interface.h"
+#include "netroute.h"
+#include "packet_header.h"
 #include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,11 +54,12 @@ void broadcast_close(void)
 }
 
 // decode frame and process information
-ssize_t receive_frame(uint8_t *buf, size_t n, peer_t *peer)
+ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
 {
     uint32_t payload_len = 0;
     ssize_t m = 0;
     uint32_t data_len = 0;
+    peer_t *target = NULL;
 
     while ((m = recv(peer->s, buf, FRAME_HEADER_SIZE, MSG_NOSIGNAL)) != FRAME_HEADER_SIZE) {
         if (m <= 0) {
@@ -87,8 +90,32 @@ ssize_t receive_frame(uint8_t *buf, size_t n, peer_t *peer)
 
     switch (*buf) {
         case HEADER_DATA:
-            tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
-            broadcast_data_to_peers(buf, n, peer);
+            packet_destaddr(&buf[FRAME_HEADER_SIZE], route);
+            if (is_local_route(route)) {
+                packet_srcaddr(&buf[FRAME_HEADER_SIZE], route);
+                if (!get_peer_route(route)) {
+                    //printf("(peer %s:%u) ", peer->address, peer->port);
+                    add_netroute(route, &peer->routes);
+                }
+                tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
+            } else if ((target = get_peer_route(route))) {
+                /*printf("(peer %s:%u) send data to peer %s:%u (dest: ",
+                       peer->address,
+                       peer->port,
+                       target->address,
+                       target->port);
+                print_netroute_addr(route);
+                printf(")\n");*/
+                send_data_to_peer(buf, data_len + FRAME_HEADER_SIZE, target);
+            } else {
+                /*printf("(peer %s:%u) broadcast data (dest: ",
+                       peer->address,
+                       peer->port);
+                print_netroute_addr(route);
+                printf(")\n");*/
+                tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
+                broadcast_data_to_peers(buf, data_len + FRAME_HEADER_SIZE, peer);
+            }
             break;
 
         case HEADER_KEEPALIVE:
@@ -111,12 +138,19 @@ void *peer_receive(void *arg)
 {
     peer_t *peer = (peer_t *) arg;
     uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
+    netroute_t *route = malloc(sizeof(netroute_t));
 
-    if (!buf) {
+    if (!buf || !route) {
         fprintf(stderr, "Could not allocate memory for peer\n");
         return NULL;
     }
-    while (receive_frame(buf, FRAME_MAXSIZE, peer) >= 0);
+
+    route->next = NULL;
+    route->mac = false;
+    route->ip4 = false;
+
+    while (receive_frame(buf, peer, route) >= 0);
     free(buf);
+    free(route);
     pthread_exit(NULL);
 }

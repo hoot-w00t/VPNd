@@ -3,6 +3,8 @@
 #include "peer.h"
 #include "peer_net.h"
 #include "protocol.h"
+#include "netroute.h"
+#include "packet_header.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -15,6 +17,7 @@
 #include <arpa/inet.h>
 
 static peer_t *peers = NULL;
+static netroute_t *local_routes = NULL;
 
 // initialize peer with NULL values
 void initialize_peer(peer_t *peer)
@@ -25,6 +28,7 @@ void initialize_peer(peer_t *peer)
     peer->s = -1;
     peer->is_client = false;
     peer->alive = false;
+    peer->routes = NULL;
     peer->next = NULL;
 }
 
@@ -39,6 +43,8 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
     peer->s = s;
     peer->is_client = is_client;
     peer->alive = true;
+    destroy_netroutes(peer->routes);
+    peer->routes = NULL;
     peer->next = NULL;
 }
 
@@ -65,6 +71,7 @@ void destroy_peer(peer_t *peer)
         }
     }
     pthread_mutex_destroy(&peer->mutex);
+    destroy_netroutes(peer->routes);
     free(peer->address);
     free(peer);
 }
@@ -74,8 +81,11 @@ void destroy_peers(void)
 {
     peer_t *current = peers;
     peer_t *next = NULL;
+    netroute_t *_local_routes = local_routes;
 
     peers = NULL;
+    local_routes = NULL;
+    destroy_netroutes(_local_routes);
     if (current)
         printf("Closing all connections...\n");
     while (current) {
@@ -179,14 +189,35 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
 {
     uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
     ssize_t n = 0;
+    netroute_t route;
+    peer_t *target = NULL;
 
     if (!buf) {
         fprintf(stderr, "Could not allocate memory for *databuf\n");
         exit(EXIT_FAILURE);
     }
+
+    route.next = NULL;
+    route.mac = false;
+    route.ip4 = false;
+
     while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
+        packet_srcaddr(&buf[FRAME_HEADER_SIZE], &route);
+        if (!is_local_route(&route)) {
+            //printf("(local) ");
+            add_netroute(&route, &local_routes);
+        }
+        packet_destaddr(&buf[FRAME_HEADER_SIZE], &route);
         encode_frame(buf, n, HEADER_DATA);
-        broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
+        if ((target = get_peer_route(&route))) {
+            //printf("(local) send data to peer %s:%u\n", target->address, target->port);
+            send_data_to_peer(buf, FRAME_HEADER_SIZE + n, target);
+        } else {
+            /*printf("(local) broadcast data (dest: ");
+            print_netroute_addr(&route);
+            printf(")\n");*/
+            broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
+        }
     }
     free(buf);
     fprintf(stderr, "Local TUN/TAP packets will no longer be broadcasted to peers\n");
@@ -201,4 +232,38 @@ pthread_t broadcast_tuntap_device(void)
 
     pthread_create(&thread, NULL, _broadcast_tuntap_device, NULL);
     return thread;
+}
+
+// return true if this route is the local tuntap device
+bool is_local_route(netroute_t *route)
+{
+    netroute_t *routes = local_routes;
+
+    while (routes) {
+        if (compare_netroutes(route, routes))
+            return true;
+        routes = routes->next;
+    }
+    return false;
+}
+
+// return peer_t to which the route belongs, or NULL if we do not know this route
+peer_t *get_peer_route(netroute_t *route)
+{
+    peer_t *peer = peers;
+
+    while (peer) {
+        if (peer->alive) {
+            netroute_t *routes = peer->routes;
+
+            while (routes) {
+                if (compare_netroutes(route, routes))
+                    return peer;
+                routes = routes->next;
+            }
+        }
+
+        peer = peer->next;
+    }
+    return NULL;
 }
