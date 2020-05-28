@@ -123,6 +123,27 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
     return peer;
 }
 
+// dump connected peers
+void dump_peers(void)
+{
+    peer_t *peer = peers;
+
+    printf("Connected peers:\n");
+    while (peer) {
+        printf("    Peer %s:%u (%s)\n", peer->address, peer->port, peer->alive ? "alive" : "dead");
+        printf("        Routes:\n");
+
+        netroute_t *route = peer->routes;
+        while (route) {
+            printf("            ");
+            print_netroute_addr(route);
+            printf(" (%s)\n", route->mac ? "mac" : (route->ip4 ? "ipv4" : "ipv6"));
+            route = route->next;
+        }
+        peer = peer->next;
+    }
+}
+
 // thread to handle a peer connection
 void *_peer_connection(void *arg)
 {
