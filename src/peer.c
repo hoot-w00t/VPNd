@@ -45,7 +45,6 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
     peer->alive = true;
     destroy_netroutes(peer->routes);
     peer->routes = NULL;
-    peer->next = NULL;
 }
 
 // allocate and initialize a peer
