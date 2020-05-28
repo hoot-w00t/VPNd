@@ -11,6 +11,7 @@ SRC	=	src/vpnd.c			\
 		src/tcp.c			\
 		src/interface.c		\
 		src/peer.c			\
+		src/peer_net.c		\
 		src/protocol.c
 
 OBJ	=	$(SRC:.c=.o)

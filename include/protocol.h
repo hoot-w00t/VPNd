@@ -22,8 +22,9 @@ payload == data_len bytes
 
 */
 
-uint32_t get_payload_size(uint8_t *buf);
-void set_payload_size(uint8_t *buf, uint32_t size);
+int is_little_endian(void);
+uint32_t read_uint32(uint8_t *buf);
+void write_uint32(uint8_t *buf, uint32_t size);
 void encode_frame(uint8_t *buf, size_t data_len, uint8_t type);
 
 #endif

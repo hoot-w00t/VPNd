@@ -12,10 +12,12 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <pthread.h>
 
 // https://github.com/torvalds/linux/blob/master/Documentation/networking/tuntap.txt
 
 static int if_fd = -1;
+static pthread_mutex_t tuntap_mutex;
 
 // return the tun/tap device file descriptor
 int tuntap_fildes(void)
@@ -29,6 +31,7 @@ void tuntap_close(void)
     if (if_fd > 0) {
         close(if_fd);
         if_fd = -1;
+        pthread_mutex_destroy(&tuntap_mutex);
     }
 }
 
@@ -68,6 +71,7 @@ int tuntap_open(char *dev, bool tap_mode)
 
     strcpy(dev, ifr.ifr_name);
     if_fd = fd;
+    pthread_mutex_init(&tuntap_mutex, NULL);
     atexit(tuntap_close);
 
     return fd;
@@ -76,10 +80,27 @@ int tuntap_open(char *dev, bool tap_mode)
 // write to the opened tun/tap device (if_fd)
 ssize_t tuntap_write(void *buf, size_t n)
 {
+    ssize_t m = 0;
+    size_t total = 0;
+    uint8_t *_buf = (uint8_t *) buf;
+
     if (if_fd < 0) {
         return -1;
     } else {
-        return write(if_fd, buf, n);
+        pthread_mutex_lock(&tuntap_mutex);
+        while (total < n) {
+            m = write(if_fd, &_buf[total], n - total);
+            if (m <= 0) {
+                fprintf(stderr, "Could not write all the data on the tun/tap device\n");
+                break;
+            }
+            total += m;
+        }
+        pthread_mutex_unlock(&tuntap_mutex);
+        if (total > n) {
+            fprintf(stderr, "Wrote too much data on tun/tap device: %lu/%lu bytes\n", total, n);
+        }
+        return total;
     }
 }
 

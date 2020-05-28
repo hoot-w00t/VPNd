@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <linux/if.h>
+#include <pthread.h>
 
 #ifndef _VPND_STRUCTS
 #define _VPND_STRUCTS
@@ -18,6 +19,7 @@ struct args {
 
 typedef struct peer peer_t;
 struct peer {
+    pthread_mutex_t mutex;     // thread mutex
     int s;                     // socket descriptor
     bool is_client;            // is it a client or a server connection
     char *address;             // remote address

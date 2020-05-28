@@ -1,6 +1,7 @@
 #include "interface.h"
 #include "attributes.h"
 #include "peer.h"
+#include "peer_net.h"
 #include "protocol.h"
 #include <stdio.h>
 #include <string.h>
@@ -18,6 +19,7 @@ static peer_t *peers = NULL;
 // initialize peer with NULL values
 void initialize_peer(peer_t *peer)
 {
+    pthread_mutex_init(&peer->mutex, NULL);
     peer->address = NULL;
     peer->port = 0;
     peer->s = -1;
@@ -29,6 +31,8 @@ void initialize_peer(peer_t *peer)
 // set peer information
 void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
 {
+    pthread_mutex_destroy(&peer->mutex);
+    pthread_mutex_init(&peer->mutex, NULL);
     free(peer->address);
     peer->address = strdup(inet_ntoa(sin->sin_addr));
     peer->port = sin->sin_port;
@@ -53,6 +57,9 @@ peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client)
 // free peer
 void destroy_peer(peer_t *peer)
 {
+    if (peer->alive)
+        close(peer->s);
+    pthread_mutex_destroy(&peer->mutex);
     free(peer->address);
     free(peer);
 }
@@ -98,51 +105,6 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
     return peer;
 }
 
-// decode frame and process information
-void decode_frame(uint8_t *buf, size_t n, peer_t *peer)
-{
-    uint32_t payload_len = get_payload_size(buf);
-
-    if (payload_len != n - FRAME_HEADER_SIZE) {
-        fprintf(stderr, "Received invalid payload from %s:%u\n",
-                        peer->address,
-                        peer->port);
-        return;
-    }
-
-    switch (*buf) {
-        case HEADER_DATA:
-            tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
-            broadcast_data_to_peers(buf, n, peer);
-            break;
-
-        case HEADER_KEEPALIVE:
-            printf("Keep Alive received from %s:%u\n", peer->address, peer->port);
-            break;
-
-        default:
-            printf("Invalid header type: %x\n", *buf);
-            break;
-    }
-}
-
-// receive data from remote peer and write it to the tun/tap device
-void *peer_receive(void *arg)
-{
-    peer_t *peer = (peer_t *) arg;
-    uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
-    ssize_t n = 0;
-
-    if (!buf) {
-        fprintf(stderr, "Could not allocate memory for peer\n");
-        return NULL;
-    }
-    while ((n = recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL)) >= (signed) FRAME_HEADER_SIZE) {
-        decode_frame(buf, n, peer);
-    }
-    return NULL;
-}
-
 // thread to handle a peer connection
 void *_peer_connection(void *arg)
 {
@@ -153,6 +115,7 @@ void *_peer_connection(void *arg)
            peer->address,
            peer->port);
 
+    broadcast_keepalive();
     pthread_create(&thread_recv, NULL, peer_receive, peer);
     pthread_join(thread_recv, NULL);
 
@@ -186,21 +149,6 @@ void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
     }
 }
 
-void sendall(int s, uint8_t *data, size_t n, int flags)
-{
-    ssize_t _n = 0;
-    size_t sent = 0;
-
-    while (sent < n) {
-        _n = send(s, &data[sent], n - sent, flags);
-        if (_n <= 0) {
-            fprintf(stderr, "Socket error: Could not send all the data\n");
-            return;
-        }
-        sent += _n;
-    }
-}
-
 // send n bytes of data to all peers if exclude is NULL
 // otherwise do not send to the excluded peer
 void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
@@ -210,7 +158,7 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 
     while (peer) {
         if (peer->alive && peer != exclude) {
-            sendall(peer->s, data, n, MSG_NOSIGNAL);
+            send_data_to_peer(data, n, peer);
             sent_to += 1;
         }
         peer = peer->next;
