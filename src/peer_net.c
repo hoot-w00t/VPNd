@@ -9,30 +9,27 @@
 #include <stddef.h>
 #include <pthread.h>
 
-// make sure that all the data is sent to the socket s
-void sendall(int s, uint8_t *data, size_t n, int flags)
+// send data to *peer if it alive
+// this will also ensure that all the data is sent
+void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer)
 {
     ssize_t _n = 0;
     size_t sent = 0;
 
-    while (sent < n) {
-        _n = send(s, &data[sent], n - sent, flags);
-        if (_n <= 0) {
-            fprintf(stderr, "Socket error: Could not send all the data\n");
-            return;
-        };
-        sent += n;
-    }
-    if (sent != n)
-        fprintf(stderr, "Sent %lu bytes but buffer contained %lu bytes\n", sent, n);
-}
-
-// data to the given peer if it is alive
-void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer)
-{
     if (peer->alive) {
         pthread_mutex_lock(&peer->mutex);
-        sendall(peer->s, data, n, MSG_NOSIGNAL);
+        while (sent < n) {
+            _n = send(peer->s, &data[sent], n - sent, MSG_NOSIGNAL);
+            if (_n <= 0) {
+                fprintf(stderr, "(peer %s:%u) send error, %lu/%lu bytes sent\n",
+                        peer->address,
+                        peer->port,
+                        sent,
+                        n);
+                break;
+            };
+            sent += n;
+        }
         pthread_mutex_unlock(&peer->mutex);
     }
 }
@@ -65,13 +62,20 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
         if (m <= 0) {
             return -1;
         } else {
-            fprintf(stderr, "Received invalid header of size %i\n", (int) m);
+            fprintf(stderr, "(peer %s:%u) invalid header of size %i\n",
+                    peer->address,
+                    peer->port,
+                    (int) m);
         }
     }
     payload_len = read_uint32(&buf[1]);
 
     if (payload_len > FRAME_PAYLOAD_MAXSIZE) {
-        fprintf(stderr, "Received invalid payload size: %u\n", payload_len);
+        fprintf(stderr, "(peer %s:%u) invalid payload size: %u\n",
+                peer->address,
+                peer->port,
+                payload_len);
+        recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL);
         return 0;
     } else if (payload_len > 0) {
         while (data_len < payload_len) {
@@ -83,7 +87,11 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
             }
         }
         if (data_len > payload_len) {
-            fprintf(stderr, "Received too much data, %u/%u bytes\n", data_len, payload_len);
+            fprintf(stderr, "(peer %s:%u) too much data, %u/%u bytes\n",
+                    peer->address,
+                    peer->port,
+                    data_len,
+                    payload_len);
             return 0;
         }
     }
@@ -94,40 +102,28 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
             if (is_local_route(route)) {
                 packet_srcaddr(&buf[FRAME_HEADER_SIZE], route);
                 if (!get_peer_route(route)) {
-                    //printf("(peer %s:%u) ", peer->address, peer->port);
+                    printf("(peer %s:%u) ", peer->address, peer->port);
                     add_netroute(route, &peer->routes);
                 }
                 tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
             } else if ((target = get_peer_route(route))) {
-                /*printf("(peer %s:%u) send data to peer %s:%u (dest: ",
-                       peer->address,
-                       peer->port,
-                       target->address,
-                       target->port);
-                print_netroute_addr(route);
-                printf(")\n");*/
                 send_data_to_peer(buf, data_len + FRAME_HEADER_SIZE, target);
             } else {
-                /*printf("(peer %s:%u) broadcast data (dest: ",
-                       peer->address,
-                       peer->port);
-                print_netroute_addr(route);
-                printf(")\n");*/
                 tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
                 broadcast_data_to_peers(buf, data_len + FRAME_HEADER_SIZE, peer);
             }
             break;
 
         case HEADER_KEEPALIVE:
-            printf("Received keep alive from %s:%u\n", peer->address, peer->port);
+            printf("(peer %s:%u) keep alive\n", peer->address, peer->port);
             break;
 
         case HEADER_CLOSE:
-            printf("Received close from %s:%u\n", peer->address, peer->port);
+            printf("(peer %s:%u) close\n", peer->address, peer->port);
             return -1;
 
         default:
-            printf("Received invalid header type: %x\n", *buf);
+            printf("(peer %s:%u) invalid header type 0x%02x\n", peer->address, peer->port, *buf);
             break;
     }
     return data_len + FRAME_HEADER_SIZE;

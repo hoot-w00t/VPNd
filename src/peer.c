@@ -204,18 +204,14 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
         packet_srcaddr(&buf[FRAME_HEADER_SIZE], &route);
         if (!is_local_route(&route)) {
-            //printf("(local) ");
+            printf("(local) ");
             add_netroute(&route, &local_routes);
         }
         packet_destaddr(&buf[FRAME_HEADER_SIZE], &route);
         encode_frame(buf, n, HEADER_DATA);
         if ((target = get_peer_route(&route))) {
-            //printf("(local) send data to peer %s:%u\n", target->address, target->port);
             send_data_to_peer(buf, FRAME_HEADER_SIZE + n, target);
         } else {
-            /*printf("(local) broadcast data (dest: ");
-            print_netroute_addr(&route);
-            printf(")\n");*/
             broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
         }
     }

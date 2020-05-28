@@ -56,9 +56,9 @@ void add_netroute(netroute_t *route, netroute_t **array)
         return;
     }
 
-    /*printf("adding route ");
+    printf("adding route ");
     print_netroute_addr(route);
-    printf("\n");*/
+    printf("\n");
     dupr->next = NULL;
     if (*array == NULL) {
         *array = dupr;
