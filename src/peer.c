@@ -257,7 +257,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
 
             memset(addr, 0, sizeof(addr));
             get_netroute_addr(&route, addr, sizeof(addr));
-            logger(LOG_DEBUG, "adding local route: %s", addr);
+            logger(LOG_DEBUG, "local: adding route: %s", addr);
             add_netroute(&route, &local_routes);
         }
         packet_destaddr(&buf[FRAME_HEADER_SIZE], &route);
