@@ -64,9 +64,12 @@ void destroy_peer(peer_t *peer)
 {
     if (peer->alive) {
         close(peer->s);
-        while (peer->alive) {
+        for (uint8_t i = 0; i < 10 && peer->alive; ++i) {
             printf("Waiting for thread %s:%u to exit...\n", peer->address, peer->port);
             sleep(1);
+        }
+        if (peer->alive) {
+            printf("Thread %s:%u takes too long to exit\n", peer->address, peer->port);
         }
     }
     pthread_mutex_destroy(&peer->mutex);
