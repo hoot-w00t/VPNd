@@ -18,6 +18,7 @@ void decode_tuntap_header(uint8_t *packet)
     printf("Flags: 0x%04x, proto: 0x%04x\n", flags, ether_type);
 }
 
+// decode IP packet and place the destination IP address in *dest (v4 and v6)
 void ip_packet_destaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
 {
     dest->mac = false;
@@ -42,6 +43,7 @@ void ip_packet_destaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
     }
 }
 
+// decode ethernet packet and place the destination mac address in *dest
 void eth_packet_destaddr(uint8_t *packet, netroute_t *dest)
 {
     dest->ip4 = false;
@@ -50,8 +52,8 @@ void eth_packet_destaddr(uint8_t *packet, netroute_t *dest)
         dest->addr[i] = packet[i];
 }
 
-// decode tuntap packet and network packet header and put the information
-// in *dest
+// decode tuntap packet and network packet header
+// if valid, place the network packet's destination address in *dest
 void packet_destaddr(uint8_t *packet, netroute_t *dest)
 {
     uint8_t *raw_packet = &packet[4];
@@ -65,6 +67,7 @@ void packet_destaddr(uint8_t *packet, netroute_t *dest)
     }
 }
 
+// decode IP packet and place the source IP address in *dest (v4 and v6)
 void ip_packet_srcaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
 {
     dest->mac = false;
@@ -89,6 +92,7 @@ void ip_packet_srcaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
     }
 }
 
+// decode ethernet packet and place the source mac address in *dest
 void eth_packet_srcaddr(uint8_t *packet, netroute_t *dest)
 {
     dest->ip4 = false;
@@ -97,8 +101,8 @@ void eth_packet_srcaddr(uint8_t *packet, netroute_t *dest)
         dest->addr[i] = packet[i + 6];
 }
 
-// decode tuntap packet and network packet header and put the information
-// in *dest
+// decode tuntap packet and network packet header
+// if valid, place the network packet's source address in *dest
 void packet_srcaddr(uint8_t *packet, netroute_t *dest)
 {
     uint8_t *raw_packet = &packet[4];
