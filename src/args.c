@@ -68,6 +68,7 @@ void print_help(const char *bin_name)
     printf("    --dev-up {script}    path to the script that will be executed\n");
     printf("                         after the TUN/TAP device is opened\n");
     printf("                         (default=./dev-up)\n");
+    printf("    --detach             detach the process to run as a daemon\n");
     printf("\nPositionnal argument:\n");
     printf("    address              address to connect to or listen on\n");
 }
@@ -75,6 +76,7 @@ void print_help(const char *bin_name)
 // initialize arguments to their default values
 void initialize_default_args(struct args *args)
 {
+    args->detach = false;
     args->server = false;
     args->tap_mode = false;
     args->address = NULL;
@@ -151,6 +153,10 @@ void parse_longopt(int opt_index, char **av, struct args *args)
             strncpy(args->dev, optarg, IFNAMSIZ - 1);
             break;
 
+        case 7: // detach
+            args->detach = true;
+            break;
+
         default:
             exit(EXIT_FAILURE);
     }
@@ -195,13 +201,14 @@ void parse_shortopt(int opt, char **av, struct args *args)
 void parse_cmdline_arguments(int ac, char **av, struct args *args)
 {
     const struct option opts[] = {
-        {"help", no_argument, 0, 0},
-        {"version", no_argument, 0, 0},
+        {"help",      no_argument,       0, 0},
+        {"version",   no_argument,       0, 0},
         {"log-level", required_argument, 0, 0},
-        {"server", no_argument, 0, 0},
-        {"mode", required_argument, 0, 0},
-        {"port", required_argument, 0, 0},
+        {"server",    no_argument,       0, 0},
+        {"mode",      required_argument, 0, 0},
+        {"port",      required_argument, 0, 0},
         {"interface", required_argument, 0, 0},
+        {"detach",    no_argument,       0, 0},
         {0, 0, 0, 0}
     };
     const char optstring[] = "hvsm:p:i:";

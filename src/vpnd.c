@@ -27,6 +27,7 @@
 #include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -62,6 +63,16 @@ int main(int ac, char **av)
     struct args args;
 
     parse_cmdline_arguments(ac, av, &args);
+
+    if (args.detach) {
+        pid_t pid = fork();
+        if (pid == -1) {
+            logger(LOG_CRIT, "fork failed: %s\n", strerror(errno));
+            return EXIT_FAILURE;
+        } else if (pid > 0) {
+            return EXIT_SUCCESS;
+        }
+    }
 
     logger(LOG_INFO, "Running in %s mode", args.tap_mode ? "TAP" : "TUN");
     logger(LOG_DEBUG, "Address: %s", args.address);

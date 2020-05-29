@@ -25,11 +25,12 @@
 #define _VPND_STRUCTS
 
 struct args {
-    bool tap_mode;                  // is the interface TAP or TUN
-    bool server;                    // do we run in server or client mode
-    char dev[IFNAMSIZ];             // device name
-    char *address;                  // address to connect or listen to
-    uint16_t port;                  // port to connect to or listen on
+    bool detach;           // should the process fork() to detach
+    bool tap_mode;         // is the interface TAP or TUN
+    bool server;           // do we run in server or client mode
+    char dev[IFNAMSIZ];    // device name
+    char *address;         // address to connect or listen to
+    uint16_t port;         // port to connect to or listen on
 };
 
 typedef struct peer peer_t;
