@@ -1,3 +1,21 @@
+/*
+    VPNd - a VPN daemon
+    Copyright (C) 2020  akrocynova
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 #include "args.h"
 #include "vpnd.h"
 #include "logger.h"
@@ -7,6 +25,16 @@
 #include <limits.h>
 #include <unistd.h>
 #include <getopt.h>
+
+// print license
+void print_license(void)
+{
+    printf("VPNd  Copyright (C) 2020  akrocynova\n");
+    printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
+    printf("This is free software, and you are welcome to redistribute it\n");
+    printf("under certain conditions.\n");
+    printf("Read LICENSE for more information.\n");
+}
 
 // print program version
 void print_version(void)
@@ -23,6 +51,8 @@ void print_usage(const char *bin_name)
 // print program help and usage to stdout
 void print_help(const char *bin_name)
 {
+    print_license();
+    printf("\n");
     print_usage(bin_name);
     printf("\nDescription:\n");
     printf("Optionnal arguments:\n");
