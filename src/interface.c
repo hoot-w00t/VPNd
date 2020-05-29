@@ -131,11 +131,6 @@ ssize_t tuntap_write(void *buf, size_t n)
             total += m;
         }
         pthread_mutex_unlock(&tuntap_mutex);
-        if (total > n) {
-            logger(LOG_CRIT, "Wrote too much data on tun/tap device: %lu/%lu bytes\n",
-                             total,
-                             n);
-        }
         return total;
     }
 }
