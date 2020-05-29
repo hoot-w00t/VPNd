@@ -1,6 +1,7 @@
 #include "structs.h"
 #include "interface.h"
 #include "netroute.h"
+#include "logger.h"
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <arpa/inet.h>
@@ -39,7 +40,7 @@ void ip_packet_destaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
             dest->addr[i] = header->daddr.in6_u.u6_addr8[i];
 
     } else {
-        fprintf(stderr, "Not an IP packet, cannot inspect header\n");
+        logger(LOG_ERROR, "Not an IP packet, cannot inspect header");
     }
 }
 
@@ -88,7 +89,7 @@ void ip_packet_srcaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
             dest->addr[i] = header->saddr.in6_u.u6_addr8[i];
 
     } else {
-        fprintf(stderr, "Not an IP packet, cannot inspect header\n");
+        logger(LOG_ERROR, "Not an IP packet, cannot inspect header");
     }
 }
 

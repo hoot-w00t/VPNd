@@ -1,4 +1,5 @@
 #include "interface.h"
+#include "logger.h"
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
@@ -10,8 +11,6 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <pthread.h>
 
 // https://github.com/torvalds/linux/blob/master/Documentation/networking/tuntap.txt
@@ -43,7 +42,7 @@ const char *tuntap_devname(void)
 void tuntap_close(void)
 {
     if (if_fd > 0) {
-        printf("Closing TUN/TAP device...\n");
+        logger(LOG_INFO, "Closing TUN/TAP device...");
         close(if_fd);
         if_fd = -1;
         pthread_mutex_destroy(&tuntap_mutex);
@@ -61,12 +60,12 @@ int tuntap_open(char *dev, bool tap_mode)
     int fd, err;
 
     if (if_fd > 0) {
-        fprintf(stderr, "A TUN/TAP device is already open\n");
+        logger(LOG_ERROR, "A TUN/TAP device is already open");
         return -1;
     }
 
     if ((fd = open("/dev/net/tun", O_RDWR)) < 0) {
-        fprintf(stderr, "Could not open /dev/net/tun: %s\n", strerror(errno));
+        logger(LOG_CRIT, "Could not open /dev/net/tun: %s", strerror(errno));
         return -1;
     }
 
@@ -76,10 +75,10 @@ int tuntap_open(char *dev, bool tap_mode)
         strncpy(ifr.ifr_name, dev, IFNAMSIZ - 1);
 
     if ((err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0) {
-        fprintf(stderr, "Could not configure %s device %s: %s\n",
-                tap_mode ? "TAP" : "TUN",
-                dev,
-                strerror(errno));
+        logger(LOG_CRIT, "Could not configure %s device %s: %s",
+                         tap_mode ? "TAP" : "TUN",
+                         dev,
+                         strerror(errno));
         close(fd);
         return -1;
     }
@@ -108,14 +107,16 @@ ssize_t tuntap_write(void *buf, size_t n)
         while (total < n) {
             m = write(if_fd, &_buf[total], n - total);
             if (m <= 0) {
-                fprintf(stderr, "Could not write all the data on the tun/tap device\n");
+                logger(LOG_CRIT, "Could not write all the data on the tun/tap device");
                 break;
             }
             total += m;
         }
         pthread_mutex_unlock(&tuntap_mutex);
         if (total > n) {
-            fprintf(stderr, "Wrote too much data on tun/tap device: %lu/%lu bytes\n", total, n);
+            logger(LOG_CRIT, "Wrote too much data on tun/tap device: %lu/%lu bytes\n",
+                             total,
+                             n);
         }
         return total;
     }

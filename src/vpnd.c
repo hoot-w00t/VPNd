@@ -6,6 +6,7 @@
 #include "peer.h"
 #include "signals.h"
 #include "scripts.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,11 +19,9 @@ int vpnd(struct args *args)
     if (tuntap_open(args->dev, args->tap_mode) == -1)
         return EXIT_FAILURE;
 
-    if (args->verbose)
-        printf("Opened device: %s\n", args->dev);
+    logger(LOG_INFO, "Opened device: %s", tuntap_devname());
 
     execute_dev_up();
-
     atexit(destroy_peers);
 
     broadcast_thread = broadcast_tuntap_device();
@@ -34,7 +33,7 @@ int vpnd(struct args *args)
 
     destroy_peers();
     tuntap_close();
-    printf("Waiting for broadcasting thread to end...\n");
+    logger(LOG_WARN, "Waiting for broadcasting thread to end...");
     pthread_cancel(broadcast_thread);
     pthread_join(broadcast_thread, NULL);
     return EXIT_SUCCESS;
@@ -45,12 +44,10 @@ int main(int ac, char **av)
     struct args args;
 
     parse_cmdline_arguments(ac, av, &args);
-    if (args.verbose) {
-        printf("Running in %s mode\n", args.tap_mode ? "TAP" : "TUN");
-        printf("Address: %s\n", args.address);
-        printf("Port: %u\n", args.port);
-        printf("Device name: %s\n", args.dev);
-    }
+
+    logger(LOG_INFO, "Running in %s mode", args.tap_mode ? "TAP" : "TUN");
+    logger(LOG_DEBUG, "Address: %s", args.address);
+    logger(LOG_DEBUG, "Port: %u", args.port);
     override_signals();
 
     return vpnd(&args);

@@ -5,6 +5,7 @@
 #include "protocol.h"
 #include "netroute.h"
 #include "packet_header.h"
+#include "logger.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -65,11 +66,11 @@ void destroy_peer(peer_t *peer)
     if (peer->alive) {
         close(peer->s);
         for (uint8_t i = 0; i < 10 && peer->alive; ++i) {
-            printf("Waiting for thread %s:%u to exit...\n", peer->address, peer->port);
+            logger(LOG_WARN, "Waiting for thread %s:%u to exit...", peer->address, peer->port);
             sleep(1);
         }
         if (peer->alive) {
-            printf("Thread %s:%u takes too long to exit\n", peer->address, peer->port);
+            logger(LOG_WARN, "Thread %s:%u takes too long to exit", peer->address, peer->port);
         }
     }
     pthread_mutex_destroy(&peer->mutex);
@@ -89,7 +90,7 @@ void destroy_peers(void)
     local_routes = NULL;
     destroy_netroutes(_local_routes);
     if (current)
-        printf("Closing all connections...\n");
+        logger(LOG_WARN, "Closing all connections...");
     while (current) {
         next = current->next;
         destroy_peer(current);
@@ -128,18 +129,25 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
 // dump connected peers
 void dump_peers(void)
 {
+    char addr[INET6_ADDRSTRLEN];
     peer_t *peer = peers;
 
     printf("Connected peers:\n");
     while (peer) {
-        printf("    Peer %s:%u (%s)\n", peer->address, peer->port, peer->alive ? "alive" : "dead");
+        printf("    Peer %s:%u (%s)\n",
+               peer->address,
+               peer->port,
+               peer->alive ? "alive" : "dead");
         printf("        Routes:\n");
 
         netroute_t *route = peer->routes;
         while (route) {
-            printf("            ");
-            print_netroute_addr(route);
-            printf(" (%s)\n", route->mac ? "mac" : (route->ip4 ? "ipv4" : "ipv6"));
+            memset(addr, 0, sizeof(addr));
+            get_netroute_addr(route, addr, sizeof(addr));
+            printf("            %s (%s)\n",
+                   addr,
+                   route->mac ? "mac" : (route->ip4 ? "ipv4" : "ipv6"));
+
             route = route->next;
         }
         peer = peer->next;
@@ -152,7 +160,7 @@ void *_peer_connection(void *arg)
     peer_t *peer = (peer_t *) arg;
     pthread_t thread_recv;
 
-    printf("Established connection with %s:%u\n",
+    logger(LOG_INFO, "Established connection with %s:%u",
            peer->address,
            peer->port);
 
@@ -163,7 +171,7 @@ void *_peer_connection(void *arg)
     peer->alive = false;
     close(peer->s);
 
-    printf("Lost connection with %s:%u\n",
+    logger(LOG_WARN, "Lost connection with %s:%u",
            peer->address,
            peer->port);
 
@@ -177,7 +185,7 @@ void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
     pthread_t peer_thread;
 
     if (!peer) {
-        fprintf(stderr, "Could not allocate memory for peer\n");
+        logger(LOG_CRIT, "Could not allocate memory for peer");
         return;
     }
 
@@ -216,7 +224,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     peer_t *target = NULL;
 
     if (!buf) {
-        fprintf(stderr, "Could not allocate memory for *databuf\n");
+        logger(LOG_CRIT, "Could not allocate memory for *databuf");
         exit(EXIT_FAILURE);
     }
 
@@ -227,7 +235,11 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
         packet_srcaddr(&buf[FRAME_HEADER_SIZE], &route);
         if (!is_local_route(&route)) {
-            printf("(local) ");
+            char addr[INET6_ADDRSTRLEN];
+
+            memset(addr, 0, sizeof(addr));
+            get_netroute_addr(&route, addr, sizeof(addr));
+            logger(LOG_DEBUG, "adding local route: %s", addr);
             add_netroute(&route, &local_routes);
         }
         packet_destaddr(&buf[FRAME_HEADER_SIZE], &route);
@@ -239,7 +251,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
         }
     }
     free(buf);
-    fprintf(stderr, "Local TUN/TAP packets will no longer be broadcasted to peers\n");
+    logger(LOG_CRIT, "Local TUN/TAP packets will no longer be broadcasted to peers");
     pthread_exit(NULL);
 }
 

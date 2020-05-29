@@ -3,8 +3,10 @@
 #include "interface.h"
 #include "netroute.h"
 #include "packet_header.h"
+#include "logger.h"
 #include <sys/socket.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <pthread.h>
@@ -21,11 +23,11 @@ void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer)
         while (sent < n) {
             _n = send(peer->s, &data[sent], n - sent, MSG_NOSIGNAL);
             if (_n <= 0) {
-                fprintf(stderr, "(peer %s:%u) send error, %lu/%lu bytes sent\n",
-                        peer->address,
-                        peer->port,
-                        sent,
-                        n);
+                logger(LOG_ERROR, "peer %s:%u: send error: %lu/%lu bytes sent",
+                                  peer->address,
+                                  peer->port,
+                                  sent,
+                                  n);
                 break;
             };
             sent += n;
@@ -62,19 +64,19 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
         if (m <= 0) {
             return -1;
         } else {
-            fprintf(stderr, "(peer %s:%u) invalid header of size %i\n",
-                    peer->address,
-                    peer->port,
-                    (int) m);
+            logger(LOG_ERROR, "peer %s:%u: invalid header of size %i",
+                              peer->address,
+                              peer->port,
+                              (int) m);
         }
     }
     payload_len = read_uint32(&buf[1]);
 
     if (payload_len > FRAME_PAYLOAD_MAXSIZE) {
-        fprintf(stderr, "(peer %s:%u) invalid payload size: %u\n",
-                peer->address,
-                peer->port,
-                payload_len);
+        logger(LOG_ERROR, "peer %s:%u: invalid payload size: %u",
+                          peer->address,
+                          peer->port,
+                          payload_len);
         recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL);
         return 0;
     } else if (payload_len > 0) {
@@ -86,14 +88,6 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
                 data_len += m;
             }
         }
-        if (data_len > payload_len) {
-            fprintf(stderr, "(peer %s:%u) too much data, %u/%u bytes\n",
-                    peer->address,
-                    peer->port,
-                    data_len,
-                    payload_len);
-            return 0;
-        }
     }
 
     switch (*buf) {
@@ -102,7 +96,14 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
             if (is_local_route(route)) {
                 packet_srcaddr(&buf[FRAME_HEADER_SIZE], route);
                 if (!get_peer_route(route)) {
-                    printf("(peer %s:%u) ", peer->address, peer->port);
+                    char addr[INET6_ADDRSTRLEN];
+
+                    memset(addr, 0, sizeof(addr));
+                    get_netroute_addr(route, addr, sizeof(addr));
+                    logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
+                                      peer->address,
+                                      peer->port,
+                                      addr);
                     add_netroute(route, &peer->routes);
                 }
                 tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
@@ -115,15 +116,22 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
             break;
 
         case HEADER_KEEPALIVE:
-            printf("(peer %s:%u) keep alive\n", peer->address, peer->port);
+            logger(LOG_DEBUG, "peer %s:%u: keep alive",
+                              peer->address,
+                              peer->port);
             break;
 
         case HEADER_CLOSE:
-            printf("(peer %s:%u) close\n", peer->address, peer->port);
+            logger(LOG_DEBUG, "peer %s:%u: close",
+                              peer->address,
+                              peer->port);
             return -1;
 
         default:
-            printf("(peer %s:%u) invalid header type 0x%02x\n", peer->address, peer->port, *buf);
+            logger(LOG_ERROR, "peer %s:%u: invalid header type: 0x%02x",
+                              peer->address,
+                              peer->port,
+                              *buf);
             break;
     }
     return data_len + FRAME_HEADER_SIZE;
@@ -137,7 +145,7 @@ void *peer_receive(void *arg)
     netroute_t *route = malloc(sizeof(netroute_t));
 
     if (!buf || !route) {
-        fprintf(stderr, "Could not allocate memory for peer\n");
+        logger(LOG_CRIT, "Could not allocate memory for peer");
         return NULL;
     }
 

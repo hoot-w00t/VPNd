@@ -1,5 +1,6 @@
 #include "scripts.h"
 #include "interface.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -14,7 +15,7 @@ int execute_script(const char *script_path)
     int ret = 0;
 
     if ((ret = system(script_path)) < 0) {
-        fprintf(stderr, "Script error: %s: %s\n", script_path, strerror(errno));
+        logger(LOG_ERROR, "Script error: %s: %s", script_path, strerror(errno));
     }
     return ret;
 }

@@ -1,11 +1,42 @@
 #include "netroute.h"
 #include "protocol.h"
+#include "logger.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <arpa/inet.h>
+
+// write netroute address to *dest
+void get_netroute_addr(netroute_t *route, char *dest, uint16_t maxlen)
+{
+    if (route->mac) {
+        snprintf(dest, maxlen, "%02x:%02x:%02x:%02x:%02x:%02x",
+                                route->addr[0],
+                                route->addr[1],
+                                route->addr[2],
+                                route->addr[3],
+                                route->addr[4],
+                                route->addr[5]);
+    } else if (route->ip4) {
+        if (is_little_endian()) {
+            uint8_t ordered_ip[4] = {
+                route->addr[3],
+                route->addr[2],
+                route->addr[1],
+                route->addr[0]
+            };
+
+            inet_ntop(AF_INET, ordered_ip, dest, maxlen);
+        } else {
+            inet_ntop(AF_INET, route->addr, dest, maxlen);
+        }
+    } else {
+        inet_ntop(AF_INET6, route->addr, dest, maxlen);
+    }
+}
 
 // if the two netroutes contain the same address and type, return true
 bool compare_netroutes(const netroute_t *r1, const netroute_t *r2)
@@ -52,13 +83,10 @@ void add_netroute(netroute_t *route, netroute_t **array)
     netroute_t *dupr = duplicate_netroute(route);
 
     if (!dupr) {
-        fprintf(stderr, "Could not allocate memory for netroute\n");
+        logger(LOG_CRIT, "Could not allocate memory for netroute");
         return;
     }
 
-    printf("adding route ");
-    print_netroute_addr(route);
-    printf("\n");
     dupr->next = NULL;
     if (*array == NULL) {
         *array = dupr;
@@ -81,41 +109,5 @@ void destroy_netroutes(netroute_t *routes)
         next = current->next;
         free(current);
         current = next;
-    }
-}
-
-// print netroute address to stdout
-void print_netroute_addr(netroute_t *route)
-{
-    if (route->mac) {
-        printf("%02x:%02x:%02x:%02x:%02x:%02x",
-               route->addr[0],
-               route->addr[1],
-               route->addr[2],
-               route->addr[3],
-               route->addr[4],
-               route->addr[5]);
-    } else if (route->ip4) {
-        char ip_addr[INET_ADDRSTRLEN];
-
-        if (is_little_endian()) {
-            uint8_t ordered_ip[4] = {
-                route->addr[3],
-                route->addr[2],
-                route->addr[1],
-                route->addr[0]
-            };
-
-            inet_ntop(AF_INET, ordered_ip, ip_addr, sizeof(ip_addr));
-        } else {
-            inet_ntop(AF_INET, route->addr, ip_addr, sizeof(ip_addr));
-        }
-
-        printf("%s", ip_addr);
-    } else {
-        char ip_addr[INET6_ADDRSTRLEN];
-
-        inet_ntop(AF_INET6, route->addr, ip_addr, sizeof(ip_addr));
-        printf("%s", ip_addr);
     }
 }

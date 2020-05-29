@@ -1,5 +1,6 @@
 #include "args.h"
 #include "vpnd.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,41 +17,34 @@ void print_version(void)
 // print program usage to stdout
 void print_usage(const char *bin_name)
 {
-    size_t bin_len = strlen(bin_name);
-
-    printf("Usage: %s [-h] [-v] [-s]\n", bin_name);
-    printf("        ");
-    for (size_t i = 0; i < bin_len; ++i)
-        printf(" ");
-    printf("[-m {mode}] [-p {port}] address\n");
+    printf("Usage: %s [options] address\n", bin_name);
 }
 
 // print program help and usage to stdout
 void print_help(const char *bin_name)
 {
     print_usage(bin_name);
-    printf("\nDescription:\n\n");
+    printf("\nDescription:\n");
     printf("Optionnal arguments:\n");
-    printf("    -h, --help         show this help message\n");
-    printf("    -v, --version      display program version\n");
-    printf("    --verbose          display more information for debugging\n\n");
-    printf("    -s, --server       run in server mode\n");
-    printf("    -i, --interface    interface name\n");
-    printf("                       (default=vpnd)\n");
-    printf("    -m, --mode {mode}  interface mode, can be either tun or tap\n");
-    printf("                       (default: tun)\n");
-    printf("    -p, --port {port}  port to connect to or listen on\n");
-    printf("    --dev-up {script}  path to the script that will be executed\n");
-    printf("                       after the TUN/TAP device is opened\n");
-    printf("                       (default=./dev-up)\n");
+    printf("    -h, --help           show this help message\n");
+    printf("    -v, --version        display program version\n");
+    printf("    --log-level {level}  set the log level (default=warn)\n\n");
+    printf("    -s, --server         run in server mode\n");
+    printf("    -i, --interface      interface name\n");
+    printf("                         (default=vpnd)\n");
+    printf("    -m, --mode {mode}    interface mode, can be either tun or tap\n");
+    printf("                         (default: tun)\n");
+    printf("    -p, --port {port}    port to connect to or listen on\n");
+    printf("    --dev-up {script}    path to the script that will be executed\n");
+    printf("                         after the TUN/TAP device is opened\n");
+    printf("                         (default=./dev-up)\n");
     printf("\nPositionnal argument:\n");
-    printf("    address            address to connect to or listen on\n");
+    printf("    address              address to connect to or listen on\n");
 }
 
 // initialize arguments to their default values
 void initialize_default_args(struct args *args)
 {
-    args->verbose = false;
     args->server = false;
     args->tap_mode = false;
     args->address = NULL;
@@ -84,6 +78,17 @@ void parse_port(const char *arg, struct args *args)
     args->port = (uint16_t) port;
 }
 
+// parse log level
+void parse_log_level(const char *arg)
+{
+    if (set_logging_level_str(arg) < 0) {
+        fprintf(stderr, "Invalid logging level, possible levels are: ");
+        print_logging_levels_str();
+        printf("\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 // parse long opts
 void parse_longopt(int opt_index, char **av, struct args *args)
 {
@@ -96,8 +101,8 @@ void parse_longopt(int opt_index, char **av, struct args *args)
             print_version();
             exit(EXIT_SUCCESS);
 
-        case 2: // verbose
-            args->verbose = true;
+        case 2: // log-level
+            parse_log_level(optarg);
             break;
 
         case 3: // server
@@ -162,7 +167,7 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
     const struct option opts[] = {
         {"help", no_argument, 0, 0},
         {"version", no_argument, 0, 0},
-        {"verbose", no_argument, 0, 0},
+        {"log-level", required_argument, 0, 0},
         {"server", no_argument, 0, 0},
         {"mode", required_argument, 0, 0},
         {"port", required_argument, 0, 0},

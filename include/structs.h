@@ -7,7 +7,6 @@
 #define _VPND_STRUCTS
 
 struct args {
-    bool verbose;                   // display more information for debugging
     bool tap_mode;                  // is the interface TAP or TUN
     bool server;                    // do we run in server or client mode
     char dev[IFNAMSIZ];             // device name

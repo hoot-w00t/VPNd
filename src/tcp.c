@@ -1,5 +1,6 @@
 #include "tcp.h"
 #include "peer.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,14 +30,14 @@ int tcp_bind(const char *bind_address, uint16_t bind_port, int backlog)
     // Create socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
-        fprintf(stderr, "Could not create server socket: %s\n", strerror(errno));
+        logger(LOG_CRIT, "Could not create server socket: %s", strerror(errno));
         return -1;
     }
     setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)); // set reuseaddr option
 
     // Bind to address and port
     if (bind(server_socket, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
-        fprintf(stderr, "Could not bind to %s:%u: %s\n", bind_address, bind_port, strerror(errno));
+        logger(LOG_CRIT, "Could not bind to %s:%u: %s", bind_address, bind_port, strerror(errno));
         close(server_socket);
         server_socket = -1;
         return -1;
@@ -44,7 +45,7 @@ int tcp_bind(const char *bind_address, uint16_t bind_port, int backlog)
 
     // Start listening to connections
     if (listen(server_socket, backlog) == -1) {
-        fprintf(stderr, "Could not start listening: %s\n", strerror(errno));
+        logger(LOG_CRIT, "Could not start listening: %s", strerror(errno));
         close(server_socket);
         server_socket = -1;
         return -1;
@@ -66,7 +67,7 @@ int tcp_accept_connection(void)
     peer = accept(server_socket, &sin, &sin_len);
 
     if (peer == -1) {
-        fprintf(stderr, "Connection failed: %s\n", strerror(errno));
+        logger(LOG_ERROR, "Connection failed: %s", strerror(errno));
         return -1;
     }
 
@@ -80,7 +81,7 @@ int tcp_server(const char *bind_address, uint16_t bind_port, int backlog)
     if (tcp_bind(bind_address, bind_port, backlog) == -1)
         return -1;
 
-    printf("Listening for incoming connections...\n");
+    logger(LOG_INFO, "Listening for incoming connections...");
     while (server_socket > 0)
         tcp_accept_connection();
 
@@ -92,7 +93,7 @@ int tcp_server(const char *bind_address, uint16_t bind_port, int backlog)
 void tcp_server_close(void)
 {
     if (server_socket > 0) {
-        printf("Closing server...\n");
+        logger(LOG_INFO, "Closing server...");
         close(server_socket);
         server_socket = -1;
     }
@@ -107,7 +108,7 @@ int tcp_client(const char *address, uint16_t port)
     // Initialize peer_addr
     memset(&sin, 0, sizeof(sin));
     if (inet_pton(AF_INET, address, &_address) != 1) {
-        fprintf(stderr, "Invalid IP address: %s\n", address);
+        logger(LOG_CRIT, "Invalid IP address: %s", address);
         return -1;
     }
     memset(&sin, 0, sizeof(sin));
@@ -118,14 +119,14 @@ int tcp_client(const char *address, uint16_t port)
     // Create socket
     int s = socket(AF_INET, SOCK_STREAM, 0);
     if (s == -1) {
-        fprintf(stderr, "Could not create client socket: %s\n", strerror(errno));
+        logger(LOG_CRIT, "Could not create client socket: %s", strerror(errno));
         return -1;
     }
 
     // Connect to remote host
-    printf("Connecting to %s:%u...\n", address, port);
+    logger(LOG_INFO, "Connecting to %s:%u...\n", address, port);
     if (connect(s, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
-        fprintf(stderr, "Could not connect to %s:%u: %s\n", address, port, strerror(errno));
+        logger(LOG_ERROR, "Could not connect to %s:%u: %s", address, port, strerror(errno));
         close(s);
         return -1;
     }

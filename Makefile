@@ -16,7 +16,8 @@ SRC	=	src/vpnd.c			\
 		src/signals.c		\
 		src/packet_header.c	\
 		src/netroute.c		\
-		src/scripts.c
+		src/scripts.c		\
+		src/logger.c
 
 OBJ	=	$(SRC:.c=.o)
 DEP	=	$(SRC:.c=.d)
