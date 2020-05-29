@@ -14,6 +14,7 @@ It is probably flawed, inefficient, and definitely not secure, but it serves as 
 *   [ ] Route packets efficiently between clients
 *   [x] Use a lightweight protocol to communicate between daemons
 *   [ ] Add documentation
+*   [ ] Add IPv6 compatibility for network sockets (the VPN tunnel should already work with IPv6 packets)
 
 ## Building the project
 You need `make` and `gcc` to build the project.
