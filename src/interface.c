@@ -18,6 +18,7 @@
 
 static int if_fd = -1;
 static bool if_tap = false;
+static char devname[IFNAMSIZ];
 static pthread_mutex_t tuntap_mutex;
 
 // return the tun/tap device file descriptor
@@ -30,6 +31,12 @@ int tuntap_fildes(void)
 bool tuntap_tap_mode(void)
 {
     return if_tap;
+}
+
+// return the tun/tap device name
+const char *tuntap_devname(void)
+{
+    return devname;
 }
 
 // close tun/tap device
@@ -78,6 +85,7 @@ int tuntap_open(char *dev, bool tap_mode)
     }
 
     strcpy(dev, ifr.ifr_name);
+    strcpy(devname, ifr.ifr_name);
     if_fd = fd;
     if_tap = tap_mode;
     pthread_mutex_init(&tuntap_mutex, NULL);
@@ -121,51 +129,4 @@ ssize_t tuntap_read(void *buf, size_t nbytes)
     } else {
         return read(if_fd, buf, nbytes);
     }
-}
-
-// return the network address from the ip and cidr
-in_addr_t get_ip_network(in_addr_t ip, uint8_t cidr)
-{
-    in_addr_t mask = 0;
-    uint8_t cidr_limit = sizeof(in_addr_t) * 8;
-
-    for (uint8_t i = 0; i < cidr && i < cidr_limit; ++i) {
-        mask |= 1 << i;
-    }
-    return ip & mask;
-}
-
-// set ip address on device dev to ip_addr
-void set_device_ip(const char *ip_addr, uint8_t cidr, const char *dev)
-{
-    struct in_addr vpn_ip, vpn_network;
-
-    vpn_ip.s_addr = inet_addr(ip_addr);
-    vpn_network.s_addr = get_ip_network(vpn_ip.s_addr, cidr);
-
-    char link_up[18 + IFNAMSIZ];
-    char addr_add[40 + IFNAMSIZ];
-
-    snprintf(link_up, sizeof(link_up), "ip link set \"%s\" up", dev);
-    snprintf(addr_add, sizeof(addr_add), "ip addr add \"%s/%u\" dev \"%s\"",
-             inet_ntoa(vpn_ip),
-             cidr,
-             dev);
-
-    int ret;
-    if ((ret = system(link_up))) {
-        fprintf(stderr, "set_device_ip failed: '%s' returned %i\n",
-                        link_up,
-                        ret);
-        return;
-    }
-    if ((ret = system(addr_add))) {
-        fprintf(stderr, "set_device_ip failed: '%s' returned %i\n",
-                        link_up,
-                        ret);
-        return;
-    }
-
-    printf("Set VPN IP address to %s\n", inet_ntoa(vpn_ip));
-    printf("Set VPN network to %s/%u\n", inet_ntoa(vpn_network), cidr);
 }

@@ -5,6 +5,7 @@
 #include "vpnd.h"
 #include "peer.h"
 #include "signals.h"
+#include "scripts.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,8 +21,7 @@ int vpnd(struct args *args)
     if (args->verbose)
         printf("Opened device: %s\n", args->dev);
 
-    if (*(args->vpn_ip))
-        set_device_ip(args->vpn_ip, args->vpn_cidr, args->dev);
+    execute_dev_up();
 
     atexit(destroy_peers);
 
@@ -31,6 +31,7 @@ int vpnd(struct args *args)
     } else {
         tcp_client(args->address, args->port);
     }
+
     destroy_peers();
     tuntap_close();
     printf("Waiting for broadcasting thread to end...\n");

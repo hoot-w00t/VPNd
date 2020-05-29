@@ -40,10 +40,9 @@ void print_help(const char *bin_name)
     printf("    -m, --mode {mode}  interface mode, can be either tun or tap\n");
     printf("                       (default: tun)\n");
     printf("    -p, --port {port}  port to connect to or listen on\n");
-    printf("    --vpn-ip           IP address on the VPN\n");
-    printf("                       (if unset you will have to do it manually)\n");
-    printf("    --vpn-cidr         CIDR netmask on the VPN\n");
-    printf("                       (default=24)");
+    printf("    --dev-up {script}  path to the script that will be executed\n");
+    printf("                       after the TUN/TAP device is opened\n");
+    printf("                       (default=./dev-up)\n");
     printf("\nPositionnal argument:\n");
     printf("    address            address to connect to or listen on\n");
 }
@@ -58,8 +57,6 @@ void initialize_default_args(struct args *args)
     args->port = DEFAULT_PORT;
     memset(args->dev, 0, sizeof(args->dev));
     strncpy(args->dev, "vpnd", IFNAMSIZ - 1);
-    memset(args->vpn_ip, 0, sizeof(args->vpn_ip));
-    args->vpn_cidr = 24;
 }
 
 // parse interface mode
@@ -119,14 +116,6 @@ void parse_longopt(int opt_index, char **av, struct args *args)
             strncpy(args->dev, optarg, IFNAMSIZ - 1);
             break;
 
-        case 7: // vpn-ip
-            strncpy(args->vpn_ip, optarg, sizeof(args->vpn_ip) - 1);
-            break;
-
-        case 8: // vpn-cidr
-            args->vpn_cidr = atoi(optarg);
-            break;
-
         default:
             exit(EXIT_FAILURE);
     }
@@ -178,8 +167,6 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
         {"mode", required_argument, 0, 0},
         {"port", required_argument, 0, 0},
         {"interface", required_argument, 0, 0},
-        {"vpn-ip", required_argument, 0, 0},
-        {"vpn-cidr", required_argument, 0, 0},
         {0, 0, 0, 0}
     };
     const char optstring[] = "hvsm:p:i:";
