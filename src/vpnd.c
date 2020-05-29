@@ -50,8 +50,9 @@ int vpnd(struct args *args)
         tcp_client(args->address, args->port);
     }
 
-    destroy_peers();
     tuntap_close();
+    destroy_peers();
+
     logger(LOG_WARN, "Waiting for broadcasting thread to end...");
     pthread_cancel(broadcast_thread);
     pthread_join(broadcast_thread, NULL);
