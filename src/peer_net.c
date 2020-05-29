@@ -73,21 +73,20 @@ void broadcast_close(void)
 // decode frame and process information
 ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
 {
-    uint32_t payload_len = 0;
     ssize_t m = 0;
-    uint32_t data_len = 0;
+    uint32_t total = 0;
+    uint32_t payload_len = 0;
     peer_t *target = NULL;
 
-    while ((m = recv(peer->s, buf, FRAME_HEADER_SIZE, MSG_NOSIGNAL)) != FRAME_HEADER_SIZE) {
+    while (total != FRAME_HEADER_SIZE) {
+        m = recv(peer->s, &buf[total], FRAME_HEADER_SIZE - total, MSG_NOSIGNAL);
         if (m <= 0) {
             return -1;
-        } else {
-            logger(LOG_ERROR, "peer %s:%u: invalid header of size %i",
-                              peer->address,
-                              peer->port,
-                              (int) m);
         }
+        total += m;
     }
+
+    total = 0;
     payload_len = read_uint32(&buf[1]);
 
     if (payload_len > FRAME_PAYLOAD_MAXSIZE) {
@@ -98,12 +97,12 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
         recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL);
         return 0;
     } else if (payload_len > 0) {
-        while (data_len < payload_len) {
-            m = recv(peer->s, &buf[FRAME_HEADER_SIZE + data_len], payload_len - data_len, MSG_NOSIGNAL);
+        while (total < payload_len) {
+            m = recv(peer->s, &buf[FRAME_HEADER_SIZE + total], payload_len - total, MSG_NOSIGNAL);
             if (m <= 0) {
                 return -1;
             } else {
-                data_len += m;
+                total += m;
             }
         }
     }
@@ -126,10 +125,10 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
                 }
                 tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
             } else if ((target = get_peer_route(route))) {
-                send_data_to_peer(buf, data_len + FRAME_HEADER_SIZE, target);
+                send_data_to_peer(buf, total + FRAME_HEADER_SIZE, target);
             } else {
                 tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
-                broadcast_data_to_peers(buf, data_len + FRAME_HEADER_SIZE, peer);
+                broadcast_data_to_peers(buf, total + FRAME_HEADER_SIZE, peer);
             }
             break;
 
@@ -152,7 +151,7 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
                               *buf);
             break;
     }
-    return data_len + FRAME_HEADER_SIZE;
+    return total + FRAME_HEADER_SIZE;
 }
 
 // receive data from remote peer and write it to the tun/tap device
