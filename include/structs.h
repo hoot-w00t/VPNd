@@ -16,10 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include "vpnd.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <linux/if.h>
 #include <pthread.h>
+#include <openssl/rsa.h>
 
 #ifndef _VPND_STRUCTS
 #define _VPND_STRUCTS
@@ -42,6 +44,7 @@ struct peer {
     char *address;             // remote address
     uint16_t port;             // remote port
     bool alive;                // is this peer connected
+    RSA *pubkey;               // peer's RSA public key
     struct netroute *routes;   // peer routes
     struct peer *next;         // next peer in the linked list
 };
@@ -49,7 +52,7 @@ struct peer {
 struct netroute {
     bool mac;              // is addr a MAC address
     bool ip4;              // if !mac is addr an IPv4 or an IPv6 address
-    uint8_t addr[16];      // route address bytes (in big endian)
+    byte_t addr[16];       // route address bytes (in big endian)
     struct netroute *next; // next route in the linked list
 };
 

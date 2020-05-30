@@ -18,8 +18,51 @@
 
 #include "protocol.h"
 #include "vpnd.h"
+#include "rsa.h"
 #include <stdio.h>
 #include <string.h>
+
+static RSA *daemon_privkey = NULL;
+static RSA *daemon_pubkey = NULL;
+
+// get daemon private key
+RSA *get_daemon_privkey(void)
+{
+    return daemon_privkey;
+}
+
+// get daemon public key
+RSA *get_daemon_pubkey(void)
+{
+    return daemon_pubkey;
+}
+
+// load daemon private key
+RSA *load_daemon_privkey(const char *filepath)
+{
+    RSA_free(daemon_privkey);
+    daemon_privkey = NULL;
+    daemon_privkey = load_rsa_key(filepath, false);
+
+    return daemon_privkey;
+}
+
+// load daemon public key
+RSA *load_daemon_pubkey(const char *filepath)
+{
+    RSA_free(daemon_pubkey);
+    daemon_pubkey = NULL;
+    daemon_pubkey = load_rsa_key(filepath, true);
+
+    return daemon_pubkey;
+}
+
+// free daemon RSA keys
+void free_daemon_keys(void)
+{
+    RSA_free(daemon_pubkey);
+    RSA_free(daemon_privkey);
+}
 
 // are we running on a little or big endian machine
 int is_little_endian(void)
@@ -70,3 +113,4 @@ void encode_frame(byte_t *buf, size_t data_len, byte_t type)
     *buf = type;
     write_uint32(&buf[1], data_len);
 }
+

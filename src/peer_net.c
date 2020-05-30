@@ -22,6 +22,7 @@
 #include "netroute.h"
 #include "packet_header.h"
 #include "logger.h"
+#include <openssl/pem.h>
 #include <sys/socket.h>
 #include <stdio.h>
 #include <string.h>
@@ -68,6 +69,26 @@ void broadcast_close(void)
     byte_t brd_close[5] = {HEADER_CLOSE, 0, 0, 0, 0};
 
     broadcast_data_to_peers(brd_close, sizeof(brd_close), NULL);
+}
+
+// send daemon pubkey to peer
+void send_daemon_pubkey_to_peer(peer_t *peer)
+{
+    byte_t buf[FRAME_HEADER_SIZE];
+    BIO *bp = BIO_new(BIO_s_mem());
+    BUF_MEM *pp = NULL;
+
+    if (!bp)
+        return;
+
+    PEM_write_bio_RSA_PUBKEY(bp, get_daemon_pubkey());
+    BIO_get_mem_ptr(bp, &pp);
+    encode_frame(buf, pp->length, HEADER_AUTH);
+
+    send_data_to_peer(buf, sizeof(buf), peer);
+    send_data_to_peer(pp->data, pp->length, peer);
+
+    BIO_free_all(bp);
 }
 
 // decode frame and process information
@@ -143,6 +164,12 @@ ssize_t receive_frame(byte_t *buf, peer_t *peer, netroute_t *route)
                               peer->address,
                               peer->port);
             return -1;
+
+        case HEADER_AUTH:
+            logger(LOG_DEBUG, "peer %s:%u: auth",
+                              peer->address,
+                              peer->port);
+            break;
 
         default:
             logger(LOG_ERROR, "peer %s:%u: invalid header type: 0x%02x",

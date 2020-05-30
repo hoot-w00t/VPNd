@@ -24,6 +24,7 @@
 #include "netroute.h"
 #include "packet_header.h"
 #include "logger.h"
+#include "rsa.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -47,6 +48,7 @@ void initialize_peer(peer_t *peer)
     peer->s = -1;
     peer->is_client = false;
     peer->alive = false;
+    peer->pubkey = NULL;
     peer->routes = NULL;
     peer->next = NULL;
 }
@@ -59,11 +61,13 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
     free(peer->address);
     peer->address = strdup(inet_ntoa(sin->sin_addr));
     peer->port = sin->sin_port;
-    peer->s = s;
     peer->is_client = is_client;
-    peer->alive = true;
+    RSA_free(peer->pubkey);
+    peer->pubkey = NULL;
     destroy_netroutes(peer->routes);
     peer->routes = NULL;
+    peer->s = s;
+    peer->alive = true;
 }
 
 // allocate and initialize a peer
@@ -92,6 +96,7 @@ void destroy_peer(peer_t *peer)
         }
     }
     pthread_mutex_destroy(&peer->mutex);
+    RSA_free(peer->pubkey);
     destroy_netroutes(peer->routes);
     free(peer->address);
     free(peer);
@@ -183,6 +188,7 @@ void *_peer_connection(void *arg)
            peer->port);
 
     broadcast_keepalive();
+    send_daemon_pubkey_to_peer(peer);
     pthread_create(&thread_recv, NULL, peer_receive, peer);
     pthread_join(thread_recv, NULL);
 

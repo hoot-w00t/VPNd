@@ -4,3 +4,5 @@
 .vscode/
 vpnd
 dev-up
+key.priv
+key.pub

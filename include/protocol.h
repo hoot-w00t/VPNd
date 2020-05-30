@@ -17,6 +17,7 @@
 */
 
 #include "vpnd.h"
+#include <openssl/rsa.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -27,9 +28,10 @@
 #define FRAME_PAYLOAD_MAXSIZE 2048
 #define FRAME_MAXSIZE (FRAME_HEADER_SIZE + FRAME_PAYLOAD_MAXSIZE)
 
-#define HEADER_KEEPALIVE 0b001
-#define HEADER_DATA      0b010
-#define HEADER_CLOSE     0b100
+#define HEADER_KEEPALIVE 0b0001
+#define HEADER_DATA      0b0010
+#define HEADER_CLOSE     0b0100
+#define HEADER_AUTH      0b1000
 
 /*
 
@@ -41,6 +43,11 @@ payload == data_len bytes
 
 */
 
+RSA *get_daemon_privkey(void);
+RSA *get_daemon_pubkey(void);
+RSA *load_daemon_privkey(const char *filepath);
+RSA *load_daemon_pubkey(const char *filepath);
+void free_daemon_keys(void);
 int is_little_endian(void);
 uint32_t read_uint32(byte_t *buf);
 void write_uint32(byte_t *buf, uint32_t size);

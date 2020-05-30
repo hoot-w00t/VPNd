@@ -25,6 +25,7 @@
 #include "signals.h"
 #include "scripts.h"
 #include "logger.h"
+#include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -34,6 +35,12 @@
 int vpnd(struct args *args)
 {
     pthread_t broadcast_thread;
+
+    if (!load_daemon_privkey("key.priv") || !load_daemon_pubkey("key.pub")) {
+        free_daemon_keys();
+        return EXIT_FAILURE;
+    }
+    atexit(free_daemon_keys);
 
     if (tuntap_open(args->dev, args->tap_mode) == -1)
         return EXIT_FAILURE;
