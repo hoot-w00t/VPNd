@@ -17,6 +17,7 @@
 */
 
 #include "protocol.h"
+#include "vpnd.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -29,7 +30,7 @@ int is_little_endian(void)
 }
 
 // read uint32 from *buf in big endian
-uint32_t read_uint32(uint8_t *buf)
+uint32_t read_uint32(byte_t *buf)
 {
     uint32_t data_len = 0;
 
@@ -48,23 +49,23 @@ uint32_t read_uint32(uint8_t *buf)
 }
 
 // write uint32 at *buf in big endian
-void write_uint32(uint8_t *buf, uint32_t size)
+void write_uint32(byte_t *buf, uint32_t size)
 {
     if (is_little_endian()) {
-        buf[3] = (uint8_t) ((size >> 24) & 0xff);
-        buf[2] = (uint8_t) ((size >> 16) & 0xff);
-        buf[1] = (uint8_t) ((size >> 8) & 0xff);
-        buf[0] = (uint8_t) (size & 0xff);
+        buf[3] = (byte_t) ((size >> 24) & 0xff);
+        buf[2] = (byte_t) ((size >> 16) & 0xff);
+        buf[1] = (byte_t) ((size >> 8) & 0xff);
+        buf[0] = (byte_t) (size & 0xff);
     } else {
-        buf[0] = (uint8_t) ((size >> 24) & 0xff);
-        buf[1] = (uint8_t) ((size >> 16) & 0xff);
-        buf[2] = (uint8_t) ((size >> 8) & 0xff);
-        buf[3] = (uint8_t) (size & 0xff);
+        buf[0] = (byte_t) ((size >> 24) & 0xff);
+        buf[1] = (byte_t) ((size >> 16) & 0xff);
+        buf[2] = (byte_t) ((size >> 8) & 0xff);
+        buf[3] = (byte_t) (size & 0xff);
     }
 }
 
 // send a data frame on socket s
-void encode_frame(uint8_t *buf, size_t data_len, uint8_t type)
+void encode_frame(byte_t *buf, size_t data_len, byte_t type)
 {
     *buf = type;
     write_uint32(&buf[1], data_len);

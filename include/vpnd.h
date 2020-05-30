@@ -19,3 +19,10 @@
 #ifndef GITVER
 #define GITVER "dev"
 #endif
+
+#ifndef _VPND_TYPES
+#define _VPND_TYPES
+
+typedef unsigned char byte_t;
+
+#endif

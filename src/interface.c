@@ -18,6 +18,7 @@
 
 #include "interface.h"
 #include "logger.h"
+#include "vpnd.h"
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
@@ -116,7 +117,7 @@ ssize_t tuntap_write(void *buf, size_t n)
 {
     ssize_t m = 0;
     size_t total = 0;
-    uint8_t *_buf = (uint8_t *) buf;
+    byte_t *_buf = (byte_t *) buf;
 
     if (if_fd < 0) {
         return -1;

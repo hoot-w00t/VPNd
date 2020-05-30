@@ -40,7 +40,7 @@ void get_netroute_addr(netroute_t *route, char *dest, uint16_t maxlen)
                                 route->addr[5]);
     } else if (route->ip4) {
         if (is_little_endian()) {
-            uint8_t ordered_ip[4] = {
+            byte_t ordered_ip[4] = {
                 route->addr[3],
                 route->addr[2],
                 route->addr[1],
@@ -59,7 +59,7 @@ void get_netroute_addr(netroute_t *route, char *dest, uint16_t maxlen)
 // if the two netroutes contain the same address and type, return true
 bool compare_netroutes(const netroute_t *r1, const netroute_t *r2)
 {
-    uint8_t limit = 6;
+    byte_t limit = 6;
 
     if (r1->mac != r2->mac || r1->ip4 != r2->ip4)
         return false;
@@ -71,7 +71,7 @@ bool compare_netroutes(const netroute_t *r1, const netroute_t *r2)
             limit = sizeof(r1->addr);
         }
     }
-    for (uint8_t i = 0; i < limit; ++i) {
+    for (byte_t i = 0; i < limit; ++i) {
         if (r1->addr[i] != r2->addr[i])
             return false;
     }
@@ -88,7 +88,7 @@ netroute_t *duplicate_netroute(const netroute_t *route)
 
     dupr->mac = route->mac;
     dupr->ip4 = route->ip4;
-    for (uint8_t i = 0; i < sizeof(route->addr); ++i)
+    for (byte_t i = 0; i < sizeof(route->addr); ++i)
         dupr->addr[i] = route->addr[i];
     dupr->next = route->next;
 

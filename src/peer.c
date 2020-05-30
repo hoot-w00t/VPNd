@@ -218,7 +218,7 @@ void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
 
 // send n bytes of data to all peers if exclude is NULL
 // otherwise do not send to the excluded peer
-void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
+void broadcast_data_to_peers(byte_t *data, size_t n, peer_t *exclude)
 {
     peer_t *peer = peers;
     size_t sent_to = 0;
@@ -236,7 +236,7 @@ void broadcast_data_to_peers(uint8_t *data, size_t n, peer_t *exclude)
 // connected peers
 void *_broadcast_tuntap_device(UNUSED void *arg)
 {
-    uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
+    byte_t *buf = malloc(sizeof(byte_t) * FRAME_MAXSIZE);
     ssize_t n = 0;
     netroute_t route;
     peer_t *target = NULL;
@@ -250,7 +250,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     route.mac = false;
     route.ip4 = false;
 
-    while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], sizeof(uint8_t) * FRAME_MAXSIZE)) > 0) {
+    while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], FRAME_MAXSIZE)) > 0) {
         packet_srcaddr(&buf[FRAME_HEADER_SIZE], &route);
         if (!is_local_route(&route)) {
             char addr[INET6_ADDRSTRLEN];

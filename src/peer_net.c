@@ -31,7 +31,7 @@
 
 // send data to *peer if it alive
 // this will also ensure that all the data is sent
-void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer)
+void send_data_to_peer(byte_t *data, size_t n, peer_t *peer)
 {
     ssize_t _n = 0;
     size_t sent = 0;
@@ -57,7 +57,7 @@ void send_data_to_peer(uint8_t *data, size_t n, peer_t *peer)
 // broadcast a keepalive packet to all connected peers
 void broadcast_keepalive(void)
 {
-    uint8_t keepalive[5] = {HEADER_KEEPALIVE, 0, 0, 0, 0};
+    byte_t keepalive[5] = {HEADER_KEEPALIVE, 0, 0, 0, 0};
 
     broadcast_data_to_peers(keepalive, sizeof(keepalive), NULL);
 }
@@ -65,13 +65,13 @@ void broadcast_keepalive(void)
 // broadcast a close packet to all connected peers
 void broadcast_close(void)
 {
-    uint8_t brd_close[5] = {HEADER_CLOSE, 0, 0, 0, 0};
+    byte_t brd_close[5] = {HEADER_CLOSE, 0, 0, 0, 0};
 
     broadcast_data_to_peers(brd_close, sizeof(brd_close), NULL);
 }
 
 // decode frame and process information
-ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
+ssize_t receive_frame(byte_t *buf, peer_t *peer, netroute_t *route)
 {
     ssize_t m = 0;
     uint32_t total = 0;
@@ -158,7 +158,7 @@ ssize_t receive_frame(uint8_t *buf, peer_t *peer, netroute_t *route)
 void *peer_receive(void *arg)
 {
     peer_t *peer = (peer_t *) arg;
-    uint8_t *buf = malloc(sizeof(uint8_t) * FRAME_MAXSIZE);
+    byte_t *buf = malloc(sizeof(byte_t) * FRAME_MAXSIZE);
     netroute_t *route = malloc(sizeof(netroute_t));
 
     if (!buf || !route) {

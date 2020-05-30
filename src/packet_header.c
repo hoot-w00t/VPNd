@@ -29,7 +29,7 @@
 #include <stdio.h>
 
 // decode tuntap header and print information to stdout
-void decode_tuntap_header(uint8_t *packet)
+void decode_tuntap_header(byte_t *packet)
 {
     uint16_t flags = (packet[0] << 8) | (packet[1]);
     uint16_t ether_type = (packet[2] << 8) | (packet[3]);
@@ -38,7 +38,7 @@ void decode_tuntap_header(uint8_t *packet)
 }
 
 // decode IP packet and place the destination IP address in *dest (v4 and v6)
-void ip_packet_destaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
+void ip_packet_destaddr(byte_t *packet, uint16_t proto, netroute_t *dest)
 {
     dest->mac = false;
     if (proto == ETH_P_IP) {
@@ -63,19 +63,20 @@ void ip_packet_destaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
 }
 
 // decode ethernet packet and place the destination mac address in *dest
-void eth_packet_destaddr(uint8_t *packet, netroute_t *dest)
+void eth_packet_destaddr(byte_t *packet, netroute_t *dest)
 {
     dest->ip4 = false;
     dest->mac = true;
+
     for (uint8_t i = 0; i < 6; ++i)
         dest->addr[i] = packet[i];
 }
 
 // decode tuntap packet and network packet header
 // if valid, place the network packet's destination address in *dest
-void packet_destaddr(uint8_t *packet, netroute_t *dest)
+void packet_destaddr(byte_t *packet, netroute_t *dest)
 {
-    uint8_t *raw_packet = &packet[4];
+    byte_t *raw_packet = &packet[4];
 
     if (tuntap_tap_mode()) {
         eth_packet_destaddr(raw_packet, dest);
@@ -87,7 +88,7 @@ void packet_destaddr(uint8_t *packet, netroute_t *dest)
 }
 
 // decode IP packet and place the source IP address in *dest (v4 and v6)
-void ip_packet_srcaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
+void ip_packet_srcaddr(byte_t *packet, uint16_t proto, netroute_t *dest)
 {
     dest->mac = false;
     if (proto == ETH_P_IP) {
@@ -112,19 +113,20 @@ void ip_packet_srcaddr(uint8_t *packet, uint16_t proto, netroute_t *dest)
 }
 
 // decode ethernet packet and place the source mac address in *dest
-void eth_packet_srcaddr(uint8_t *packet, netroute_t *dest)
+void eth_packet_srcaddr(byte_t *packet, netroute_t *dest)
 {
     dest->ip4 = false;
     dest->mac = true;
+
     for (uint8_t i = 0; i < 6; ++i)
         dest->addr[i] = packet[i + 6];
 }
 
 // decode tuntap packet and network packet header
 // if valid, place the network packet's source address in *dest
-void packet_srcaddr(uint8_t *packet, netroute_t *dest)
+void packet_srcaddr(byte_t *packet, netroute_t *dest)
 {
-    uint8_t *raw_packet = &packet[4];
+    byte_t *raw_packet = &packet[4];
 
     if (tuntap_tap_mode()) {
         eth_packet_srcaddr(raw_packet, dest);
