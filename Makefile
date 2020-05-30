@@ -20,7 +20,7 @@ GITVER	=	git-$(shell git describe --always --tags --abbrev=10 --dirty)
 CC	:=	cc
 INCLUDE	:=	-Iinclude
 CFLAGS	:=	-O3 -pipe -W -Wall -Wextra $(INCLUDE) -DGITVER=\"$(GITVER)\"
-LDFLAGS	:=	-lpthread -pthread
+LDFLAGS	:=	-lpthread -pthread -lssl -lcrypto
 
 SRC	=	src/vpnd.c			\
 		src/args.c			\
@@ -33,7 +33,8 @@ SRC	=	src/vpnd.c			\
 		src/packet_header.c	\
 		src/netroute.c		\
 		src/scripts.c		\
-		src/logger.c
+		src/logger.c		\
+		src/rsa.c
 
 OBJ	=	$(SRC:.c=.o)
 DEP	=	$(SRC:.c=.d)
