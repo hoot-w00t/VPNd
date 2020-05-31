@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "attributes.h"
 #include "args.h"
 #include "tcp.h"
 #include "interface.h"
@@ -26,6 +25,7 @@
 #include "scripts.h"
 #include "logger.h"
 #include "protocol.h"
+#include "rsa.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

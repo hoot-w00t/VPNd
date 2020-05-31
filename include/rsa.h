@@ -28,8 +28,14 @@
 #define RSA_MAXSIZE(k) (RSA_size(k) - 41) // maximum length of data that can be encrypted/decrypted
 #define RSA_BUFSIZE(k) (RSA_size(k))      // maximum buffer size to store encrypted/unencrypted data
 
+RSA *load_rsa_key_from_string(const void *key, uint32_t key_len, bool public);
 RSA *load_rsa_key(const char *filepath, const bool public);
 int rsa_encrypt(byte_t *src, uint32_t src_len, byte_t *dest, RSA *pubkey);
 int rsa_decrypt(byte_t *src, uint32_t src_len, byte_t *dest, RSA *privkey);
+RSA *get_daemon_privkey(void);
+RSA *get_daemon_pubkey(void);
+RSA *load_daemon_privkey(const char *filepath);
+RSA *load_daemon_pubkey(const char *filepath);
+void free_daemon_keys(void);
 
 #endif

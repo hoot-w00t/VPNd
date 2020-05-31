@@ -24,6 +24,33 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
+// load an RSA key in PEM format from a string
+// returns NULL on error
+RSA *load_rsa_key_from_string(const void *key, uint32_t key_len, bool public)
+{
+    RSA *rsa_key = NULL;
+    BIO *bp = BIO_new_mem_buf(key, key_len);
+
+    if (!bp) {
+        logger(LOG_CRIT, "BIO allocation failed\n");
+        return NULL;
+    }
+
+    if (public) {
+        rsa_key = PEM_read_bio_RSA_PUBKEY(bp, &rsa_key, NULL, NULL);
+    } else {
+        rsa_key = PEM_read_bio_RSAPrivateKey(bp, &rsa_key, NULL, NULL);
+    }
+
+    if (!rsa_key) {
+        logger(LOG_ERROR, "Could not load %sRSA key from string",
+                          public ? "public " : "");
+    }
+    BIO_free_all(bp);
+
+    return rsa_key;
+}
+
 // load an RSA key in PEM format
 // returns NULL on error
 RSA *load_rsa_key(const char *filepath, const bool public)
@@ -92,4 +119,46 @@ int rsa_decrypt(byte_t *src, uint32_t src_len, byte_t *dest, RSA *privkey)
     }
 
     return dec_len;
+}
+
+static RSA *daemon_privkey = NULL;
+static RSA *daemon_pubkey = NULL;
+
+// get daemon private key
+RSA *get_daemon_privkey(void)
+{
+    return daemon_privkey;
+}
+
+// get daemon public key
+RSA *get_daemon_pubkey(void)
+{
+    return daemon_pubkey;
+}
+
+// load daemon private key
+RSA *load_daemon_privkey(const char *filepath)
+{
+    RSA_free(daemon_privkey);
+    daemon_privkey = NULL;
+    daemon_privkey = load_rsa_key(filepath, false);
+
+    return daemon_privkey;
+}
+
+// load daemon public key
+RSA *load_daemon_pubkey(const char *filepath)
+{
+    RSA_free(daemon_pubkey);
+    daemon_pubkey = NULL;
+    daemon_pubkey = load_rsa_key(filepath, true);
+
+    return daemon_pubkey;
+}
+
+// free daemon RSA keys
+void free_daemon_keys(void)
+{
+    RSA_free(daemon_pubkey);
+    RSA_free(daemon_privkey);
 }

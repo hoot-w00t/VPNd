@@ -24,6 +24,7 @@
 #ifndef _VPND_PEER
 #define _VPND_PEER
 
+peer_t *get_peer_list(void);
 void initialize_peer(peer_t *peer);
 void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client);
 peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client);
@@ -31,10 +32,11 @@ void destroy_peer(peer_t *peer);
 void destroy_peers(void);
 peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client);
 void dump_peers(void);
+
 void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block);
-void broadcast_data_to_peers(byte_t *data, size_t n, peer_t *exclude);
-pthread_t broadcast_tuntap_device(void);
+
 bool is_local_route(netroute_t *route);
 peer_t *get_peer_route(netroute_t *route);
+pthread_t broadcast_tuntap_device(void);
 
 #endif

@@ -39,6 +39,12 @@
 static peer_t *peers = NULL;
 static netroute_t *local_routes = NULL;
 
+// get the connected peers linked list
+peer_t *get_peer_list(void)
+{
+    return peers;
+}
+
 // initialize peer with NULL values
 void initialize_peer(peer_t *peer)
 {
@@ -187,8 +193,6 @@ void *_peer_connection(void *arg)
            peer->address,
            peer->port);
 
-    broadcast_keepalive();
-    send_daemon_pubkey_to_peer(peer);
     pthread_create(&thread_recv, NULL, peer_receive, peer);
     pthread_join(thread_recv, NULL);
 
@@ -220,73 +224,6 @@ void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
     } else {
         pthread_detach(peer_thread);
     }
-}
-
-// send n bytes of data to all peers if exclude is NULL
-// otherwise do not send to the excluded peer
-void broadcast_data_to_peers(byte_t *data, size_t n, peer_t *exclude)
-{
-    peer_t *peer = peers;
-    size_t sent_to = 0;
-
-    while (peer) {
-        if (peer->alive && peer != exclude) {
-            send_data_to_peer(data, n, peer);
-            sent_to += 1;
-        }
-        peer = peer->next;
-    }
-}
-
-// continuously read from the tun/tap interface and send the read data to all
-// connected peers
-void *_broadcast_tuntap_device(UNUSED void *arg)
-{
-    byte_t *buf = malloc(sizeof(byte_t) * FRAME_MAXSIZE);
-    ssize_t n = 0;
-    netroute_t route;
-    peer_t *target = NULL;
-
-    if (!buf) {
-        logger(LOG_CRIT, "Could not allocate memory for *databuf");
-        exit(EXIT_FAILURE);
-    }
-
-    route.next = NULL;
-    route.mac = false;
-    route.ip4 = false;
-
-    while ((n = tuntap_read(&buf[FRAME_HEADER_SIZE], FRAME_MAXSIZE)) > 0) {
-        packet_srcaddr(&buf[FRAME_HEADER_SIZE], &route);
-        if (!is_local_route(&route)) {
-            char addr[INET6_ADDRSTRLEN];
-
-            memset(addr, 0, sizeof(addr));
-            get_netroute_addr(&route, addr, sizeof(addr));
-            logger(LOG_DEBUG, "local: adding route: %s", addr);
-            add_netroute(&route, &local_routes);
-        }
-        packet_destaddr(&buf[FRAME_HEADER_SIZE], &route);
-        encode_frame(buf, n, HEADER_DATA);
-        if ((target = get_peer_route(&route))) {
-            send_data_to_peer(buf, FRAME_HEADER_SIZE + n, target);
-        } else {
-            broadcast_data_to_peers(buf, FRAME_HEADER_SIZE + n, NULL);
-        }
-    }
-    free(buf);
-    logger(LOG_CRIT, "Local TUN/TAP packets will no longer be broadcasted to peers");
-    pthread_exit(NULL);
-}
-
-// continuously read from the tun/tap interface and send the read data to all
-// connected peers
-pthread_t broadcast_tuntap_device(void)
-{
-    pthread_t thread;
-
-    pthread_create(&thread, NULL, _broadcast_tuntap_device, NULL);
-    return thread;
 }
 
 // return true if this route is the local tuntap device
@@ -321,4 +258,56 @@ peer_t *get_peer_route(netroute_t *route)
         peer = peer->next;
     }
     return NULL;
+}
+
+// continuously read from the tun/tap interface and send the read data to all
+// connected peers
+void *_broadcast_tuntap_device(UNUSED void *arg)
+{
+    byte_t *buf = malloc(sizeof(byte_t) * FRAME_PAYLOAD_MAXSIZE);
+    ssize_t n = 0;
+    netroute_t route;
+    peer_t *target = NULL;
+
+    if (!buf) {
+        logger(LOG_CRIT, "Could not allocate memory for *databuf");
+        exit(EXIT_FAILURE);
+    }
+
+    route.next = NULL;
+    route.mac = false;
+    route.ip4 = false;
+
+    while ((n = tuntap_read(buf, FRAME_PAYLOAD_MAXSIZE)) > 0) {
+        packet_srcaddr(buf, &route);
+        if (!is_local_route(&route)) {
+            char addr[INET6_ADDRSTRLEN];
+
+            memset(addr, 0, sizeof(addr));
+            get_netroute_addr(&route, addr, sizeof(addr));
+            logger(LOG_DEBUG, "local: adding route: %s", addr);
+            add_netroute(&route, &local_routes);
+        }
+
+        packet_destaddr(buf, &route);
+        if ((target = get_peer_route(&route))) {
+            send_data_to_peer(FRAME_HDR_NETPACKET, buf, n, true, target);
+        } else {
+            broadcast_data_to_peers(FRAME_HDR_NETPACKET, buf, n, true, NULL);
+        }
+    }
+
+    free(buf);
+    logger(LOG_CRIT, "Local TUN/TAP packets will no longer be broadcasted to peers");
+    pthread_exit(NULL);
+}
+
+// continuously read from the tun/tap interface and send the read data to all
+// connected peers
+pthread_t broadcast_tuntap_device(void)
+{
+    pthread_t thread;
+
+    pthread_create(&thread, NULL, _broadcast_tuntap_device, NULL);
+    return thread;
 }

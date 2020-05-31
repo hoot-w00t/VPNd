@@ -21,12 +21,13 @@
 #ifndef _VPND_PEER_NET
 #define _VPND_PEER_NET
 
-void sendall(int s, byte_t *data, size_t n, int flags);
-void send_data_to_peer(byte_t *data, size_t n, peer_t *peer);
-void broadcast_keepalive(void);
-void broadcast_close(void);
-void send_daemon_pubkey_to_peer(peer_t *peer);
-ssize_t receive_frame(byte_t *buf, size_t n, peer_t *peer);
+void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
+    bool encrypt, peer_t *peer);
+void broadcast_data_to_peers(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
+    bool encrypt, peer_t *exclude);
+int receive_frame(peer_t *peer, byte_t *buf, uint8_t *header_type, uint32_t *data_len);
+int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_len);
+bool authenticate_peer(peer_t *peer, byte_t *buf);
 void *peer_receive(void *arg);
 
 #endif

@@ -16,9 +16,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "peer_net.h"
 #include "tcp.h"
 #include "peer.h"
+#include "peer_net.h"
+#include "protocol.h"
 #include "logger.h"
 #include <stdio.h>
 #include <signal.h>
@@ -27,7 +28,7 @@ void interrupt_program_handler(int sig)
 {
     logger(LOG_DEBUG, "interrupt_program_handler (signal: %i)", sig);
     tcp_server_close();
-    broadcast_close();
+    broadcast_data_to_peers(FRAME_HDR_CLOSE, NULL, 0, false, NULL);
 }
 
 void usr1_handler(int sig)

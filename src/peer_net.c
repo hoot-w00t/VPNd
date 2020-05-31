@@ -17,11 +17,13 @@
 */
 
 #include "peer.h"
+#include "peer_net.h"
 #include "protocol.h"
 #include "interface.h"
 #include "netroute.h"
 #include "packet_header.h"
 #include "logger.h"
+#include "rsa.h"
 #include <openssl/pem.h>
 #include <sys/socket.h>
 #include <stdio.h>
@@ -30,23 +32,40 @@
 #include <stddef.h>
 #include <pthread.h>
 
-// send data to *peer if it alive
-// this will also ensure that all the data is sent
-void send_data_to_peer(byte_t *data, size_t n, peer_t *peer)
+// send data to peer, with frame header
+// this can encrypt data
+void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
+    bool encrypt, peer_t *peer)
 {
-    ssize_t _n = 0;
-    size_t sent = 0;
+    uint8_t frame_hdr[FRAME_HEADER_SIZE];
+    uint32_t sent = 0;
+    ssize_t n = 0;
 
     if (peer->alive) {
+        encode_frame_header(frame_hdr, frame_hdr_type, data_len);
         pthread_mutex_lock(&peer->mutex);
-        while (sent < n) {
-            _n = send(peer->s, &data[sent], n - sent, MSG_NOSIGNAL);
-            if (_n <= 0) {
+        while (sent < sizeof(frame_hdr)) {
+            n = send(peer->s, frame_hdr + sent, sizeof(frame_hdr) - sent, MSG_NOSIGNAL);
+            if (n <= 0) {
                 logger(LOG_ERROR, "peer %s:%u: send error: %lu/%lu bytes sent",
                                   peer->address,
                                   peer->port,
                                   sent,
-                                  n);
+                                  data_len);
+                break;
+            };
+            sent += n;
+        }
+
+        sent = 0;
+        while (sent < data_len) {
+            n = send(peer->s, data + sent, data_len - sent, MSG_NOSIGNAL);
+            if (n <= 0) {
+                logger(LOG_ERROR, "peer %s:%u: send error: %lu/%lu bytes sent",
+                                  peer->address,
+                                  peer->port,
+                                  sent,
+                                  data_len);
                 break;
             };
             sent += n;
@@ -55,120 +74,119 @@ void send_data_to_peer(byte_t *data, size_t n, peer_t *peer)
     }
 }
 
-// broadcast a keepalive packet to all connected peers
-void broadcast_keepalive(void)
+// broadcast frame with data to all peers
+// if *exclude if set to a peer, broadcast to all peers except this one
+void broadcast_data_to_peers(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
+    bool encrypt, peer_t *exclude)
 {
-    byte_t keepalive[5] = {HEADER_KEEPALIVE, 0, 0, 0, 0};
+    peer_t *peer = get_peer_list();
+    size_t sent_to = 0;
 
-    broadcast_data_to_peers(keepalive, sizeof(keepalive), NULL);
+    while (peer) {
+        if (peer != exclude && peer->alive) {
+            send_data_to_peer(frame_hdr_type, data, data_len, encrypt, peer);
+            sent_to += 1;
+        }
+        peer = peer->next;
+    }
 }
 
-// broadcast a close packet to all connected peers
-void broadcast_close(void)
+// receive frame in *buf (assuming that *buf is FRAME_MAXSIZE bytes)
+// returns the number of bytes received in total, -1 on error
+int receive_frame(peer_t *peer, byte_t *buf, uint8_t *header_type, uint32_t *data_len)
 {
-    byte_t brd_close[5] = {HEADER_CLOSE, 0, 0, 0, 0};
-
-    broadcast_data_to_peers(brd_close, sizeof(brd_close), NULL);
-}
-
-// send daemon pubkey to peer
-void send_daemon_pubkey_to_peer(peer_t *peer)
-{
-    byte_t buf[FRAME_HEADER_SIZE];
-    BIO *bp = BIO_new(BIO_s_mem());
-    BUF_MEM *pp = NULL;
-
-    if (!bp)
-        return;
-
-    PEM_write_bio_RSA_PUBKEY(bp, get_daemon_pubkey());
-    BIO_get_mem_ptr(bp, &pp);
-    encode_frame(buf, pp->length, HEADER_AUTH);
-
-    send_data_to_peer(buf, sizeof(buf), peer);
-    send_data_to_peer(pp->data, pp->length, peer);
-
-    BIO_free_all(bp);
-}
-
-// decode frame and process information
-ssize_t receive_frame(byte_t *buf, peer_t *peer, netroute_t *route)
-{
-    ssize_t m = 0;
+    ssize_t n = 0;
     uint32_t total = 0;
-    uint32_t payload_len = 0;
-    peer_t *target = NULL;
 
     while (total != FRAME_HEADER_SIZE) {
-        m = recv(peer->s, &buf[total], FRAME_HEADER_SIZE - total, MSG_NOSIGNAL);
-        if (m <= 0) {
+        n = recv(peer->s,
+                 buf + total,
+                 FRAME_HEADER_SIZE - total,
+                 MSG_NOSIGNAL);
+
+        if (n <= 0) {
             return -1;
         }
-        total += m;
+        total += n;
     }
 
-    total = 0;
-    payload_len = read_uint32(&buf[1]);
+    decode_frame_header(buf, header_type, data_len);
 
-    if (payload_len > FRAME_PAYLOAD_MAXSIZE) {
+    total = 0;
+    if (*data_len > FRAME_PAYLOAD_MAXSIZE) {
         logger(LOG_ERROR, "peer %s:%u: invalid payload size: %u",
                           peer->address,
                           peer->port,
-                          payload_len);
+                          *data_len);
+
         recv(peer->s, buf, FRAME_MAXSIZE, MSG_NOSIGNAL);
         return 0;
-    } else if (payload_len > 0) {
-        while (total < payload_len) {
-            m = recv(peer->s, &buf[FRAME_HEADER_SIZE + total], payload_len - total, MSG_NOSIGNAL);
-            if (m <= 0) {
+
+    } else if (*data_len > 0) {
+        while (total < *data_len) {
+            n = recv(peer->s,
+                     buf + FRAME_HEADER_SIZE + total,
+                     *data_len - total,
+                     MSG_NOSIGNAL);
+
+            if (n <= 0) {
                 return -1;
             } else {
-                total += m;
+                total += n;
             }
         }
     }
 
-    switch (*buf) {
-        case HEADER_DATA:
-            packet_destaddr(&buf[FRAME_HEADER_SIZE], route);
-            if (is_local_route(route)) {
-                packet_srcaddr(&buf[FRAME_HEADER_SIZE], route);
-                if (!get_peer_route(route)) {
+    return total + FRAME_HEADER_SIZE;
+}
+
+int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_len)
+{
+    byte_t *data = buf + FRAME_HEADER_SIZE;
+    netroute_t route;
+    peer_t *target = NULL;
+
+    switch (header_type) {
+        case FRAME_HDR_AUTH:
+            logger(LOG_ERROR, "peer %s:%u: received unexpected auth, ignoring",
+                              peer->address,
+                              peer->port);
+            break;
+
+        case FRAME_HDR_CLOSE:
+            logger(LOG_DEBUG, "peer %s:%u: received close",
+                              peer->address,
+                              peer->port);
+            return -1;
+
+        case FRAME_HDR_RESERVED:
+            logger(LOG_DEBUG, "peer %s:%u: received reserved header",
+                              peer->address,
+                              peer->port);
+            break;
+
+        case FRAME_HDR_NETPACKET:
+            packet_destaddr(data, &route);
+            if (is_local_route(&route)) {
+                packet_srcaddr(data, &route);
+                if (!get_peer_route(&route)) {
                     char addr[INET6_ADDRSTRLEN];
 
                     memset(addr, 0, sizeof(addr));
-                    get_netroute_addr(route, addr, sizeof(addr));
+                    get_netroute_addr(&route, addr, sizeof(addr));
                     logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
                                       peer->address,
                                       peer->port,
                                       addr);
-                    add_netroute(route, &peer->routes);
+                    add_netroute(&route, &peer->routes);
                 }
-                tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
-            } else if ((target = get_peer_route(route))) {
-                send_data_to_peer(buf, total + FRAME_HEADER_SIZE, target);
+                tuntap_write(data, data_len);
+            } else if ((target = get_peer_route(&route))) {
+                send_data_to_peer(FRAME_HDR_NETPACKET, data, data_len, true, target);
             } else {
-                tuntap_write(&buf[FRAME_HEADER_SIZE], payload_len);
-                broadcast_data_to_peers(buf, total + FRAME_HEADER_SIZE, peer);
+                tuntap_write(data, data_len);
+                broadcast_data_to_peers(FRAME_HDR_NETPACKET, data, data_len, true, target);
             }
-            break;
-
-        case HEADER_KEEPALIVE:
-            logger(LOG_DEBUG, "peer %s:%u: keep alive",
-                              peer->address,
-                              peer->port);
-            break;
-
-        case HEADER_CLOSE:
-            logger(LOG_DEBUG, "peer %s:%u: close",
-                              peer->address,
-                              peer->port);
-            return -1;
-
-        case HEADER_AUTH:
-            logger(LOG_DEBUG, "peer %s:%u: auth",
-                              peer->address,
-                              peer->port);
             break;
 
         default:
@@ -178,7 +196,51 @@ ssize_t receive_frame(byte_t *buf, peer_t *peer, netroute_t *route)
                               *buf);
             break;
     }
-    return total + FRAME_HEADER_SIZE;
+
+    return 0;
+}
+
+// authenticate *peer
+// if function returns true peer is authenticated
+// otherwise we should close the connection because the peer
+// cannot be authenticated
+bool authenticate_peer(peer_t *peer, byte_t *buf)
+{
+    BIO *bp = BIO_new(BIO_s_mem());
+    BUF_MEM *pp = NULL;
+
+    if (!bp) {
+        logger(LOG_CRIT, "Could not allocate memory for peer authentication");
+        return false;
+    }
+
+    PEM_write_bio_RSA_PUBKEY(bp, get_daemon_pubkey());
+    BIO_get_mem_ptr(bp, &pp);
+
+    byte_t *pem_key = (byte_t *) pp->data;
+    uint32_t pem_key_len = pp->length;
+    send_data_to_peer(FRAME_HDR_AUTH, pem_key, pem_key_len, false, peer);
+
+    BIO_free_all(bp);
+
+    uint8_t header_type = 0;
+    uint32_t data_len = 0;
+
+    if (receive_frame(peer, buf, &header_type, &data_len) < 0)
+        return false;
+
+    if (header_type != FRAME_HDR_AUTH || data_len == 0)
+        return false;
+
+    peer->pubkey = load_rsa_key_from_string(buf + FRAME_HEADER_SIZE, data_len, true);
+    if (!peer->pubkey) {
+        logger(LOG_ERROR, "peer %s:%u: received invalid invalid public key",
+                          peer->address,
+                          peer->port);
+        return false;
+    }
+
+    return true;
 }
 
 // receive data from remote peer and write it to the tun/tap device
@@ -186,19 +248,26 @@ void *peer_receive(void *arg)
 {
     peer_t *peer = (peer_t *) arg;
     byte_t *buf = malloc(sizeof(byte_t) * FRAME_MAXSIZE);
-    netroute_t *route = malloc(sizeof(netroute_t));
 
-    if (!buf || !route) {
+    if (!buf) {
         logger(LOG_CRIT, "Could not allocate memory for peer");
         return NULL;
     }
 
-    route->next = NULL;
-    route->mac = false;
-    route->ip4 = false;
+    uint8_t header_type = 0;
+    uint32_t data_len = 0;
 
-    while (receive_frame(buf, peer, route) >= 0);
+    if (authenticate_peer(peer, buf)) {
+        while (receive_frame(peer, buf, &header_type, &data_len) >= 0) {
+            if (process_frame(peer, buf, header_type, data_len) < 0)
+                break;
+        }
+    } else {
+        logger(LOG_ERROR, "peer %s:%u: authentication failed",
+                          peer->address,
+                          peer->port);
+    }
+
     free(buf);
-    free(route);
     pthread_exit(NULL);
 }
