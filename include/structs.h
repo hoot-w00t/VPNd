@@ -56,4 +56,9 @@ struct netroute {
     struct netroute *next; // next route in the linked list
 };
 
+struct rsa_key {
+    RSA *key;               // RSA key
+    struct rsa_key *next;   // next rsa_key in the linked list
+};
+
 #endif

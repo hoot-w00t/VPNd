@@ -6,3 +6,4 @@ vpnd
 dev-up
 key.priv
 key.pub
+trusted_keys/

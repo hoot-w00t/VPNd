@@ -40,7 +40,9 @@ int vpnd(struct args *args)
         free_daemon_keys();
         return EXIT_FAILURE;
     }
+    load_trusted_keys("./trusted_keys");
     atexit(free_daemon_keys);
+    atexit(clear_trusted_keys);
 
     if (tuntap_open(args->dev, args->tap_mode) == -1)
         return EXIT_FAILURE;

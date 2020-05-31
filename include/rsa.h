@@ -37,5 +37,9 @@ RSA *get_daemon_pubkey(void);
 RSA *load_daemon_privkey(const char *filepath);
 RSA *load_daemon_pubkey(const char *filepath);
 void free_daemon_keys(void);
+void add_trusted_key(RSA *key);
+void clear_trusted_keys(void);
+void load_trusted_keys(const char *folder);
+bool is_trusted_key(RSA *key);
 
 #endif

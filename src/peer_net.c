@@ -240,6 +240,13 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
         return false;
     }
 
+    if (!is_trusted_key(peer->pubkey)) {
+        logger(LOG_ERROR, "peer %s:%u: untrusted public key",
+                          peer->address,
+                          peer->port);
+        return false;
+    }
+
     return true;
 }
 
