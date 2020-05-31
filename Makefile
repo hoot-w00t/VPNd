@@ -45,7 +45,7 @@ DEP	=	$(SRC:.c=.d)
 all:	$(BINARY)
 
 $(BINARY):	$(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o:	%.c
 	$(CC) $(CFLAGS) -MMD -c $< -o $@
