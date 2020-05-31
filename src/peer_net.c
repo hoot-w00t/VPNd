@@ -27,6 +27,7 @@
 #include "encryption.h"
 #include <openssl/pem.h>
 #include <openssl/rand.h>
+#include <openssl/err.h>
 #include <sys/socket.h>
 #include <stdio.h>
 #include <string.h>
@@ -284,7 +285,7 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
 
     if (peer->is_client) {
         // Client receives AES key and IV from server
-        int _bufsize = RSA_BUFSIZE(get_daemon_privkey());
+        uint32_t _bufsize = RSA_BUFSIZE(get_daemon_privkey());
         byte_t dec_buf[_bufsize];
         int dec_len;
 
