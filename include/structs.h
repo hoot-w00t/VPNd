@@ -46,8 +46,8 @@ struct peer {
     bool alive;                // is this peer connected
     RSA *pubkey;               // peer's RSA public key
     bool authenticated;        // is peer authenticated
-    byte_t *aes_key[32];       // peer AES key
-    byte_t *aes_iv[16];        // peer AES IV
+    byte_t aes_key[32];       // peer AES key
+    byte_t aes_iv[16];        // peer AES IV
     struct netroute *routes;   // peer routes
     struct peer *next;         // next peer in the linked list
 };
