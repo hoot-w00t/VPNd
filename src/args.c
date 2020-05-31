@@ -19,6 +19,7 @@
 #include "args.h"
 #include "vpnd.h"
 #include "logger.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,15 +60,14 @@ void print_help(const char *bin_name)
     printf("    -h, --help           show this help message\n");
     printf("    -v, --version        display program version\n");
     printf("    --log-level {level}  set the log level (default=warn)\n\n");
+    printf("    -c, --config         path to configuration directory\n");
+    printf("                         (default=./)\n");
     printf("    -s, --server         run in server mode\n");
     printf("    -i, --interface      interface name\n");
     printf("                         (default=vpnd)\n");
     printf("    -m, --mode {mode}    interface mode, can be either tun or tap\n");
     printf("                         (default: tun)\n");
     printf("    -p, --port {port}    port to connect to or listen on\n");
-    printf("    --dev-up {script}    path to the script that will be executed\n");
-    printf("                         after the TUN/TAP device is opened\n");
-    printf("                         (default=./dev-up)\n");
     printf("    --detach             detach the process to run as a daemon\n");
     printf("\nPositionnal argument:\n");
     printf("    address              address to connect to or listen on\n");
@@ -83,6 +83,7 @@ void initialize_default_args(struct args *args)
     args->port = DEFAULT_PORT;
     memset(args->dev, 0, sizeof(args->dev));
     strncpy(args->dev, "vpnd", IFNAMSIZ - 1);
+    set_config_dir("./");
 }
 
 // parse interface mode
@@ -157,6 +158,10 @@ void parse_longopt(int opt_index, char **av, struct args *args)
             args->detach = true;
             break;
 
+        case 8: // config
+            set_config_dir(optarg);
+            break;
+
         default:
             exit(EXIT_FAILURE);
     }
@@ -190,6 +195,10 @@ void parse_shortopt(int opt, char **av, struct args *args)
             strncpy(args->dev, optarg, IFNAMSIZ - 1);
             break;
 
+        case 'c': // config dir
+            set_config_dir(optarg);
+            break;
+
         default: // invalid option
             exit(EXIT_FAILURE);
     }
@@ -209,9 +218,10 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
         {"port",      required_argument, 0, 0},
         {"interface", required_argument, 0, 0},
         {"detach",    no_argument,       0, 0},
+        {"config",    required_argument, 0, 0},
         {0, 0, 0, 0}
     };
-    const char optstring[] = "hvsm:p:i:";
+    const char optstring[] = "hvsm:p:i:c:";
     int opt = 0;
     int opt_index = 0;
 

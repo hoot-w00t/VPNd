@@ -36,11 +36,13 @@ int vpnd(struct args *args)
 {
     pthread_t broadcast_thread;
 
-    if (!load_daemon_privkey("key.priv") || !load_daemon_pubkey("key.pub")) {
+
+    if (!load_daemon_privkey() || !load_daemon_pubkey()) {
         free_daemon_keys();
         return EXIT_FAILURE;
     }
-    load_trusted_keys("./trusted_keys");
+
+    load_trusted_keys();
     atexit(free_daemon_keys);
     atexit(clear_trusted_keys);
 
@@ -49,7 +51,7 @@ int vpnd(struct args *args)
 
     logger(LOG_INFO, "Opened device: %s", tuntap_devname());
 
-    execute_dev_up();
+    execute_script(D_SCRIPT_DEV_UP);
     atexit(destroy_peers);
 
     broadcast_thread = broadcast_tuntap_device();

@@ -19,6 +19,7 @@
 #include "rsa.h"
 #include "logger.h"
 #include "structs.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <dirent.h>
@@ -140,21 +141,37 @@ RSA *get_daemon_pubkey(void)
 }
 
 // load daemon private key
-RSA *load_daemon_privkey(const char *filepath)
+RSA *load_daemon_privkey(void)
 {
+    char *path = join_paths(daemon_config_dir(), "key.priv");
+
+    if (!path) {
+        logger(LOG_CRIT, "Could not allocate memory for daemon privkey path");
+        return daemon_privkey;
+    }
+
     RSA_free(daemon_privkey);
     daemon_privkey = NULL;
-    daemon_privkey = load_rsa_key(filepath, false);
+    daemon_privkey = load_rsa_key(path, false);
+    free(path);
 
     return daemon_privkey;
 }
 
 // load daemon public key
-RSA *load_daemon_pubkey(const char *filepath)
+RSA *load_daemon_pubkey(void)
 {
+    char *path = join_paths(daemon_config_dir(), "key.pub");
+
+    if (!path) {
+        logger(LOG_CRIT, "Could not allocate memory for daemon pubkey path");
+        return daemon_privkey;
+    }
+
     RSA_free(daemon_pubkey);
     daemon_pubkey = NULL;
-    daemon_pubkey = load_rsa_key(filepath, true);
+    daemon_pubkey = load_rsa_key(path, true);
+    free(path);
 
     return daemon_pubkey;
 }
@@ -240,39 +257,45 @@ void clear_trusted_keys(void)
 }
 
 // add all keys in *folder to the trusted keys linked list
-void load_trusted_keys(const char *folder)
+void load_trusted_keys(void)
 {
+    char *path = join_paths(daemon_config_dir(), "trusted_keys");
+
+    if (!path) {
+        logger(LOG_CRIT, "Could not allocate memory for trusted_keys path");
+        return;
+    }
+
     struct dirent *element = NULL;
-    DIR *dirp = opendir(folder);
+    DIR *dirp = opendir(path);
 
     if (!dirp) {
-        logger(LOG_ERROR, "Cannot open trusted keys folder: %s: %s", folder, strerror(errno));
+        logger(LOG_ERROR, "Cannot open trusted keys folder: %s: %s", path, strerror(errno));
         return;
     }
 
-    char *fullpath = malloc(sizeof(char) * (strlen(folder) + 258));
-
-    if (!fullpath) {
-        logger(LOG_CRIT, "Could not allocate memory for load_trusted_keys");
-        closedir(dirp);
-        return;
-    }
-
-    strcpy(fullpath, folder);
-    strcat(fullpath, "/");
     while ((element = readdir(dirp))) {
         if (element->d_type == DT_REG) {
-            strcpy(fullpath + strlen(folder) + 1, element->d_name);
+            char *fullpath = join_paths(path, element->d_name);
+
+            if (!fullpath) {
+                logger(LOG_CRIT, "Could not allocate memory for trusted key fullpath");
+                closedir(dirp);
+                break;
+            }
+
             RSA *key = load_rsa_key(fullpath, true);
 
             if (key) {
                 logger(LOG_DEBUG, "Adding trusted key: %s", element->d_name);
                 add_trusted_key(key);
             }
+
+            free(fullpath);
         }
     }
 
-    free(fullpath);
+    free(path);
     closedir(dirp);
 }
 

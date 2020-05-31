@@ -34,12 +34,12 @@ int rsa_encrypt(byte_t *src, uint32_t src_len, byte_t *dest, RSA *pubkey);
 int rsa_decrypt(byte_t *src, uint32_t src_len, byte_t *dest, RSA *privkey);
 RSA *get_daemon_privkey(void);
 RSA *get_daemon_pubkey(void);
-RSA *load_daemon_privkey(const char *filepath);
-RSA *load_daemon_pubkey(const char *filepath);
+RSA *load_daemon_privkey(void);
+RSA *load_daemon_pubkey(void);
 void free_daemon_keys(void);
 void add_trusted_key(RSA *key);
 void clear_trusted_keys(void);
-void load_trusted_keys(const char *folder);
+void load_trusted_keys(void);
 bool is_trusted_key(RSA *key);
 
 #endif
