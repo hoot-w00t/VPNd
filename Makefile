@@ -34,7 +34,8 @@ SRC	=	src/vpnd.c			\
 		src/netroute.c		\
 		src/scripts.c		\
 		src/logger.c		\
-		src/rsa.c
+		src/rsa.c			\
+		src/encryption.c
 
 OBJ	=	$(SRC:.c=.o)
 DEP	=	$(SRC:.c=.d)

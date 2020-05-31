@@ -55,6 +55,9 @@ void initialize_peer(peer_t *peer)
     peer->is_client = false;
     peer->alive = false;
     peer->pubkey = NULL;
+    memset(peer->aes_key, 0, sizeof(peer->aes_key));
+    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
+    peer->authenticated = false;
     peer->routes = NULL;
     peer->next = NULL;
 }
@@ -70,6 +73,9 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
     peer->is_client = is_client;
     RSA_free(peer->pubkey);
     peer->pubkey = NULL;
+    memset(peer->aes_key, 0, sizeof(peer->aes_key));
+    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
+    peer->authenticated = false;
     destroy_netroutes(peer->routes);
     peer->routes = NULL;
     peer->s = s;
