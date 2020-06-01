@@ -7,8 +7,8 @@ It is probably flawed, inefficient, and definitely not secure, but it serves as 
 
 ## Goals / To-do list
 *   [x] Handle multiple clients simultaneously
-*   [ ] Add authentication
-*   [ ] Encrypt network traffic
+*   [x] Add authentication
+*   [x] Encrypt network traffic
 *   [ ] Compress network traffic
 *   [ ] Add a configuration file
 *   [ ] Route packets efficiently between clients
