@@ -72,7 +72,7 @@ void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
                                   peer->address,
                                   peer->port,
                                   sent,
-                                  data_len);
+                                  sizeof(frame_hdr));
                 break;
             };
             sent += n;
@@ -221,7 +221,7 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
                 send_data_to_peer(FRAME_HDR_NETPACKET, data, data_len, true, target);
             } else {
                 tuntap_write(data, data_len);
-                broadcast_data_to_peers(FRAME_HDR_NETPACKET, data, data_len, true, target);
+                broadcast_data_to_peers(FRAME_HDR_NETPACKET, data, data_len, true, peer);
             }
             break;
 
