@@ -22,6 +22,7 @@
 #include <linux/if.h>
 #include <pthread.h>
 #include <openssl/rsa.h>
+#include <openssl/evp.h>
 
 #ifndef _VPND_STRUCTS
 #define _VPND_STRUCTS
@@ -46,8 +47,10 @@ struct peer {
     bool alive;                // is this peer connected
     RSA *pubkey;               // peer's RSA public key
     bool authenticated;        // is peer authenticated
-    byte_t aes_key[32];       // peer AES key
-    byte_t aes_iv[16];        // peer AES IV
+    byte_t aes_key[32];        // AES key
+    byte_t aes_iv[16];         // AES IV
+    EVP_CIPHER_CTX *enc_ctx;   // encryption CTX
+    EVP_CIPHER_CTX *dec_ctx;   // decryption CTX
     struct netroute *routes;   // peer routes
     struct peer *next;         // next peer in the linked list
 };

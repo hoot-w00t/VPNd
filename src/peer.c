@@ -57,6 +57,8 @@ void initialize_peer(peer_t *peer)
     peer->pubkey = NULL;
     memset(peer->aes_key, 0, sizeof(peer->aes_key));
     memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
+    peer->enc_ctx = NULL;
+    peer->dec_ctx = NULL;
     peer->authenticated = false;
     peer->routes = NULL;
     peer->next = NULL;
@@ -73,6 +75,12 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
     peer->is_client = is_client;
     RSA_free(peer->pubkey);
     peer->pubkey = NULL;
+    if (peer->enc_ctx)
+        EVP_CIPHER_CTX_free(peer->enc_ctx);
+    if (peer->dec_ctx)
+        EVP_CIPHER_CTX_free(peer->dec_ctx);
+    peer->enc_ctx = NULL;
+    peer->enc_ctx = NULL;
     memset(peer->aes_key, 0, sizeof(peer->aes_key));
     memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
     peer->authenticated = false;
@@ -109,6 +117,10 @@ void destroy_peer(peer_t *peer)
     }
     pthread_mutex_destroy(&peer->mutex);
     RSA_free(peer->pubkey);
+    if (peer->enc_ctx)
+        EVP_CIPHER_CTX_free(peer->enc_ctx);
+    if (peer->dec_ctx)
+        EVP_CIPHER_CTX_free(peer->dec_ctx);
     destroy_netroutes(peer->routes);
     free(peer->address);
     free(peer);

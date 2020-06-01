@@ -54,7 +54,10 @@ void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
                 return;
             }
 
-            int enc_len = aes_encrypt(data, data_len, peer->aes_key, peer->aes_iv, enc_data);
+            int enc_len = aes_encrypt(peer->enc_ctx,
+                                      data,
+                                      data_len,
+                                      enc_data);
 
             if (enc_len < 0)
                 return;
@@ -188,6 +191,12 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
             break;
 
         case FRAME_HDR_NETPACKET:
+            if (!peer->authenticated) {
+                logger(LOG_ERROR, "peer %s:%u: cannot decode network packet: not authenticated",
+                                  peer->address,
+                                  peer->port);
+                break;
+            }
             if (data_len == 0) {
                 logger(LOG_ERROR, "peer %s:%u: received empty network packet",
                                   peer->address,
@@ -195,7 +204,11 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
                 break;
             }
 
-            int dec_len = aes_decrypt(data, data_len, peer->aes_key, peer->aes_iv, dec_data);
+            int dec_len = aes_decrypt(peer->dec_ctx,
+                                      data,
+                                      data_len,
+                                      dec_data);
+
             if (dec_len < 0)
                 break;
 
@@ -300,7 +313,6 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             logger(LOG_ERROR, "Invalid AES key size");
             return false;
         }
-
         memcpy(peer->aes_key, dec_buf, sizeof(peer->aes_key));
 
         if (receive_frame(peer, buf, &header_type, &data_len) < 0)
@@ -314,7 +326,6 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             logger(LOG_ERROR, "Invalid AES IV size");
             return false;
         }
-
         memcpy(peer->aes_iv, dec_buf, sizeof(peer->aes_iv));
 
     } else {
@@ -347,6 +358,13 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
 
         send_data_to_peer(FRAME_HDR_AUTH, buf, enc_len, false, peer);
     }
+
+    peer->enc_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, true);
+    peer->dec_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, false);
+
+    if (!peer->enc_ctx || !peer->dec_ctx)
+        return false;
+
     peer->authenticated = true;
     return true;
 }
