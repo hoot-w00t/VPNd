@@ -19,8 +19,6 @@ It is probably flawed, inefficient, and definitely not secure, but it serves as 
 ## Building the project
 You need `make` and `gcc` to build the project.
 
-The `--vpn-ip` argument depends on the `ip` program to automatically set the IP address/route of the virtual device.
-
 Clone the repository and navigate to it, then execute
 ```
 make
