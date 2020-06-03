@@ -285,11 +285,6 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     netroute_t route;
     peer_t *target = NULL;
 
-    if (!buf) {
-        logger(LOG_CRIT, "Could not allocate memory for *databuf");
-        exit(EXIT_FAILURE);
-    }
-
     route.next = NULL;
     route.mac = false;
     route.ip4 = false;
