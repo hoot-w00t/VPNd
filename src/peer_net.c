@@ -48,9 +48,9 @@ void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
     if (peer->alive) {
         if (encrypt) {
             if (!peer->authenticated) {
-                logger(LOG_ERROR, "peer %s:%u: not authenticated, cannot encrypt data",
-                                  peer->address,
-                                  peer->port);
+                logger(LOG_INFO, "peer %s:%u: not authenticated, not sending network packet",
+                                 peer->address,
+                                 peer->port);
                 return;
             }
 
