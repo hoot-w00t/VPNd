@@ -63,6 +63,13 @@ int tcp6_bind(const char *bind_address, const uint16_t bind_port,
                &(int) {1},
                sizeof(int));
 
+    // Disable dual-mode
+    setsockopt(s,
+               IPPROTO_IPV6,
+               IPV6_V6ONLY,
+               &(int) {1},
+               sizeof(int));
+
     // Bind to address and port
     if (bind(s, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
         logger(LOG_ERROR, "Could not bind to %s:%u: %s",

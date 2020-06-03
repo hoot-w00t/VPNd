@@ -100,15 +100,15 @@ void tcp_server_close(void)
 // open TCP listening socket(s)
 int tcp_server(const bool ip4, const bool ip6, const int backlog)
 {
-    if (ip6) {
-        tcp6_socket = tcp6_bind(NULL, DEFAULT_PORT, backlog);
-        if (tcp6_socket > 0)
-            logger(LOG_INFO, "TCP6 socket listening...");
-    }
     if (ip4) {
         tcp4_socket = tcp4_bind(NULL, DEFAULT_PORT, backlog);
         if (tcp4_socket > 0)
             logger(LOG_INFO, "TCP4 socket listening...");
+    }
+    if (ip6) {
+        tcp6_socket = tcp6_bind(NULL, DEFAULT_PORT, backlog);
+        if (tcp6_socket > 0)
+            logger(LOG_INFO, "TCP6 socket listening...");
     }
 
     struct pollfd pfds[2];
