@@ -280,7 +280,7 @@ peer_t *get_peer_route(netroute_t *route)
 // connected peers
 void *_broadcast_tuntap_device(UNUSED void *arg)
 {
-    byte_t *buf = malloc(sizeof(byte_t) * FRAME_PAYLOAD_MAXSIZE);
+    byte_t buf[FRAME_PAYLOAD_MAXSIZE];
     ssize_t n = 0;
     netroute_t route;
     peer_t *target = NULL;
@@ -313,7 +313,6 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
         }
     }
 
-    free(buf);
     logger(LOG_CRIT, "Local TUN/TAP packets will no longer be broadcasted to peers");
     pthread_exit(NULL);
 }
