@@ -149,7 +149,7 @@ int tcp_client(const char *hostname, uint16_t port)
     int err;
 
     if ((err = getaddrinfo(hostname, NULL, NULL, & ai)) != 0) {
-        logger(LOG_ERROR, "%s", gai_strerror(err));
+        logger(LOG_ERROR, "%s: %s", hostname, gai_strerror(err));
         return -1;
     }
 
