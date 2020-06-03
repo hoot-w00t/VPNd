@@ -34,6 +34,8 @@ struct args {
     char dev[IFNAMSIZ];    // device name
     char *address;         // address to connect or listen to
     uint16_t port;         // port to connect to or listen on
+    bool no_ipv4;          // disable IPv4 sockets
+    bool no_ipv6;          // disable IPv6 sockets
 };
 
 typedef struct peer peer_t;

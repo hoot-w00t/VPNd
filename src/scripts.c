@@ -43,5 +43,6 @@ int execute_script(const char *script_name)
     if ((ret = system(path)) < 0) {
         logger(LOG_ERROR, "Script error: %s: %s", path, strerror(errno));
     }
+    free(path);
     return ret;
 }
