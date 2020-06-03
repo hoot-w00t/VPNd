@@ -55,8 +55,6 @@ void initialize_peer(peer_t *peer)
     peer->is_client = false;
     peer->alive = false;
     peer->pubkey = NULL;
-    memset(peer->aes_key, 0, sizeof(peer->aes_key));
-    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
     peer->enc_ctx = NULL;
     peer->dec_ctx = NULL;
     peer->authenticated = false;
@@ -82,8 +80,6 @@ void set_peer_info(peer_t *peer, const char *address, const uint16_t port,
         EVP_CIPHER_CTX_free(peer->dec_ctx);
     peer->enc_ctx = NULL;
     peer->enc_ctx = NULL;
-    memset(peer->aes_key, 0, sizeof(peer->aes_key));
-    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
     peer->authenticated = false;
     destroy_netroutes(peer->routes);
     peer->routes = NULL;

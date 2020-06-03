@@ -296,6 +296,9 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
         return false;
     }
 
+    byte_t aes_key[32];
+    byte_t aes_iv[16];
+
     if (peer->is_client) {
         // Client receives AES key and IV from server
         uint32_t _bufsize = RSA_BUFSIZE(get_daemon_privkey());
@@ -309,11 +312,11 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
 
         dec_len = rsa_decrypt(buf + FRAME_HEADER_SIZE, data_len, dec_buf, get_daemon_privkey());
-        if (dec_len != sizeof(peer->aes_key)) {
+        if (dec_len != sizeof(aes_key)) {
             logger(LOG_ERROR, "Invalid AES key size");
             return false;
         }
-        memcpy(peer->aes_key, dec_buf, sizeof(peer->aes_key));
+        memcpy(aes_key, dec_buf, sizeof(aes_key));
 
         if (receive_frame(peer, buf, &header_type, &data_len) < 0)
             return false;
@@ -322,15 +325,15 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
 
         dec_len = rsa_decrypt(buf + FRAME_HEADER_SIZE, data_len, dec_buf, get_daemon_privkey());
-        if (dec_len != sizeof(peer->aes_iv)) {
+        if (dec_len != sizeof(aes_iv)) {
             logger(LOG_ERROR, "Invalid AES IV size");
             return false;
         }
-        memcpy(peer->aes_iv, dec_buf, sizeof(peer->aes_iv));
+        memcpy(aes_iv, dec_buf, sizeof(aes_iv));
 
     } else {
         // Server generates and sends AES key and IV to client
-        if (RAND_priv_bytes(peer->aes_key, sizeof(peer->aes_key)) != 1) {
+        if (RAND_priv_bytes(aes_key, sizeof(aes_key)) != 1) {
             logger(LOG_ERROR, "peer %s:%u: cannot generate AES key: %s",
                             peer->address,
                             peer->port,
@@ -338,7 +341,7 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
         }
 
-        if (RAND_priv_bytes(peer->aes_iv, sizeof(peer->aes_iv)) != 1) {
+        if (RAND_priv_bytes(aes_iv, sizeof(aes_iv)) != 1) {
             logger(LOG_ERROR, "peer %s:%u: cannot generate AES IV: %s",
                             peer->address,
                             peer->port,
@@ -346,21 +349,24 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
         }
 
-        int enc_len = rsa_encrypt(peer->aes_key, sizeof(peer->aes_key), buf, peer->pubkey);
+        int enc_len = rsa_encrypt(aes_key, sizeof(aes_key), buf, peer->pubkey);
         if (enc_len <= 0)
             return false;
 
         send_data_to_peer(FRAME_HDR_AUTH, buf, enc_len, false, peer);
 
-        enc_len = rsa_encrypt(peer->aes_iv, sizeof(peer->aes_iv), buf, peer->pubkey);
+        enc_len = rsa_encrypt(aes_iv, sizeof(aes_iv), buf, peer->pubkey);
         if (enc_len <= 0)
             return false;
 
         send_data_to_peer(FRAME_HDR_AUTH, buf, enc_len, false, peer);
     }
 
-    peer->enc_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, true);
-    peer->dec_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, false);
+    peer->enc_ctx = aes_init_ctx(aes_key, aes_iv, true);
+    peer->dec_ctx = aes_init_ctx(aes_key, aes_iv, false);
+
+    memset(aes_key, 0, sizeof(aes_key));
+    memset(aes_iv, 0, sizeof(aes_iv));
 
     if (!peer->enc_ctx || !peer->dec_ctx)
         return false;
