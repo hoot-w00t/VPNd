@@ -25,6 +25,7 @@
 #include "logger.h"
 #include "rsa.h"
 #include "encryption.h"
+#include <openssl/aes.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
@@ -164,12 +165,61 @@ int receive_frame(peer_t *peer, byte_t *buf, uint8_t *header_type, uint32_t *dat
     return total + FRAME_HEADER_SIZE;
 }
 
+void process_netpacket(peer_t *peer, byte_t *data, uint32_t data_len)
+{
+    netroute_t route;
+    byte_t packet_data[FRAME_PAYLOAD_MAXSIZE + AES_BLOCK_SIZE];
+    peer_t *target = NULL;
+
+    int dec_len = aes_decrypt(peer->dec_ctx,
+                              data,
+                              data_len,
+                              packet_data);
+
+    if (dec_len < 0)
+        return;
+
+    data_len = dec_len;
+
+    parse_packet_addr(packet_data, &route, false);
+    if (is_local_route(&route)) {
+        parse_packet_addr(packet_data, &route, true);
+
+        if (!get_peer_route(&route)) {
+            char addr[INET6_ADDRSTRLEN];
+
+            memset(addr, 0, sizeof(addr));
+            get_netroute_addr(&route, addr, sizeof(addr));
+
+            logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
+                              peer->address,
+                              peer->port,
+                              addr);
+
+            add_netroute(&route, &peer->routes);
+        }
+
+        tuntap_write(packet_data, data_len);
+
+    } else if ((target = get_peer_route(&route))) {
+        send_data_to_peer(FRAME_HDR_NETPACKET,
+                          packet_data,
+                          data_len,
+                          true,
+                          target);
+    } else {
+        tuntap_write(packet_data, data_len);
+        broadcast_data_to_peers(FRAME_HDR_NETPACKET,
+                                packet_data,
+                                data_len,
+                                true,
+                                peer);
+    }
+}
+
 int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_len)
 {
     byte_t *data = buf + FRAME_HEADER_SIZE;
-    byte_t dec_data[FRAME_PAYLOAD_MAXSIZE];
-    netroute_t route;
-    peer_t *target = NULL;
 
     switch (header_type) {
         case FRAME_HDR_AUTH:
@@ -204,38 +254,7 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
                 break;
             }
 
-            int dec_len = aes_decrypt(peer->dec_ctx,
-                                      data,
-                                      data_len,
-                                      dec_data);
-
-            if (dec_len < 0)
-                break;
-
-            data_len = dec_len;
-            data = dec_data;
-
-            parse_packet_addr(data, &route, false);
-            if (is_local_route(&route)) {
-                parse_packet_addr(data, &route, true);
-                if (!get_peer_route(&route)) {
-                    char addr[INET6_ADDRSTRLEN];
-
-                    memset(addr, 0, sizeof(addr));
-                    get_netroute_addr(&route, addr, sizeof(addr));
-                    logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
-                                      peer->address,
-                                      peer->port,
-                                      addr);
-                    add_netroute(&route, &peer->routes);
-                }
-                tuntap_write(data, data_len);
-            } else if ((target = get_peer_route(&route))) {
-                send_data_to_peer(FRAME_HDR_NETPACKET, data, data_len, true, target);
-            } else {
-                tuntap_write(data, data_len);
-                broadcast_data_to_peers(FRAME_HDR_NETPACKET, data, data_len, true, peer);
-            }
+            process_netpacket(peer, data, data_len);
             break;
 
         default:
