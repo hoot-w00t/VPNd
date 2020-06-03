@@ -72,7 +72,8 @@ void print_help(const char *bin_name)
     printf("    -p, --port {port}    port to connect to or listen on\n");
     printf("    --detach             detach the process to run as a daemon\n");
     printf("\nPositionnal argument:\n");
-    printf("    address              address to connect to or listen on\n");
+    printf("    address              address to connect to\n");
+    printf("                         only when running in client mode\n");
 }
 
 // initialize arguments to their default values
@@ -248,11 +249,17 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
         }
     }
 
-    if (optind >= ac) {
-        print_usage(av[0]);
-        fprintf(stderr, "\nMissing positionnal argument: address\n");
-        exit(EXIT_FAILURE);
+    if (!args->server) {
+        if (optind >= ac) {
+            fprintf(stderr, "Missing positionnal argument: address\n");
+            exit(EXIT_FAILURE);
+        } else if (optind < ac) {
+            args->address = av[optind];
+        }
     } else {
-        args->address = av[optind];
+        if (optind < ac) {
+            fprintf(stderr, "Invalid positionnal argument: %s\n", av[optind]);
+            exit(EXIT_FAILURE);
+        }
     }
 }
