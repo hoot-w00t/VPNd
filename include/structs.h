@@ -34,6 +34,8 @@ struct args {
     char dev[IFNAMSIZ];    // device name
     char *address;         // address to connect or listen to
     uint16_t port;         // port to connect to or listen on
+    bool no_ipv4;          // disable IPv4 sockets
+    bool no_ipv6;          // disable IPv6 sockets
 };
 
 typedef struct peer peer_t;
@@ -47,8 +49,6 @@ struct peer {
     bool alive;                // is this peer connected
     RSA *pubkey;               // peer's RSA public key
     bool authenticated;        // is peer authenticated
-    byte_t aes_key[32];        // AES key
-    byte_t aes_iv[16];         // AES IV
     EVP_CIPHER_CTX *enc_ctx;   // encryption CTX
     EVP_CIPHER_CTX *dec_ctx;   // decryption CTX
     struct netroute *routes;   // peer routes

@@ -20,6 +20,10 @@
 #define GITVER "dev"
 #endif
 
+#ifndef DEFAULT_PORT
+#define DEFAULT_PORT 9678
+#endif
+
 #ifndef _VPND_TYPES
 #define _VPND_TYPES
 

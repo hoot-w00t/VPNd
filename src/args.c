@@ -63,6 +63,8 @@ void print_help(const char *bin_name)
     printf("    -c, --config         path to configuration directory\n");
     printf("                         (default=./)\n");
     printf("    -s, --server         run in server mode\n");
+    printf("    --no-ipv4            disable IPv4 listening socket\n");
+    printf("    --no-ipv6            disable IPv6 listening socket\n");
     printf("    -i, --interface      interface name\n");
     printf("                         (default=vpnd)\n");
     printf("    -m, --mode {mode}    interface mode, can be either tun or tap\n");
@@ -70,7 +72,8 @@ void print_help(const char *bin_name)
     printf("    -p, --port {port}    port to connect to or listen on\n");
     printf("    --detach             detach the process to run as a daemon\n");
     printf("\nPositionnal argument:\n");
-    printf("    address              address to connect to or listen on\n");
+    printf("    address              address to connect to\n");
+    printf("                         only when running in client mode\n");
 }
 
 // initialize arguments to their default values
@@ -84,6 +87,8 @@ void initialize_default_args(struct args *args)
     memset(args->dev, 0, sizeof(args->dev));
     strncpy(args->dev, "vpnd", IFNAMSIZ - 1);
     set_config_dir("./");
+    args->no_ipv4 = false;
+    args->no_ipv6 = false;
 }
 
 // parse interface mode
@@ -162,6 +167,14 @@ void parse_longopt(int opt_index, char **av, struct args *args)
             set_config_dir(optarg);
             break;
 
+        case 9: // no-ipv4
+            args->no_ipv4 = true;
+            break;
+
+        case 10: // no-ipv6
+            args->no_ipv6 = true;
+            break;
+
         default:
             exit(EXIT_FAILURE);
     }
@@ -219,6 +232,8 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
         {"interface", required_argument, 0, 0},
         {"detach",    no_argument,       0, 0},
         {"config",    required_argument, 0, 0},
+        {"no-ipv4",   no_argument,       0, 0},
+        {"no-ipv6",   no_argument,       0, 0},
         {0, 0, 0, 0}
     };
     const char optstring[] = "hvsm:p:i:c:";
@@ -234,11 +249,17 @@ void parse_cmdline_arguments(int ac, char **av, struct args *args)
         }
     }
 
-    if (optind >= ac) {
-        print_usage(av[0]);
-        fprintf(stderr, "\nMissing positionnal argument: address\n");
-        exit(EXIT_FAILURE);
+    if (!args->server) {
+        if (optind >= ac) {
+            fprintf(stderr, "Missing positionnal argument: address\n");
+            exit(EXIT_FAILURE);
+        } else if (optind < ac) {
+            args->address = av[optind];
+        }
     } else {
-        args->address = av[optind];
+        if (optind < ac) {
+            fprintf(stderr, "Invalid positionnal argument: %s\n", av[optind]);
+            exit(EXIT_FAILURE);
+        }
     }
 }

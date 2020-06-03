@@ -20,7 +20,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <pthread.h>
 
+static pthread_mutex_t logger_mutex;
 static int log_level = LOG_DEFAULT;
 
 const char *log_levels_str[] = {
@@ -40,6 +43,19 @@ const int log_levels[] = {
     LOG_CRIT,
     0
 };
+
+// destroy logger mutex
+void free_logger(void)
+{
+    pthread_mutex_destroy(&logger_mutex);
+}
+
+// initialize logger mutex
+void init_logger(void)
+{
+    pthread_mutex_init(&logger_mutex, NULL);
+    atexit(free_logger);
+}
 
 // return -1 if level is invalid
 // otherwise set to level and return 0
@@ -93,10 +109,14 @@ void logger(int level, const char *format, ...)
         va_start(ap, format);
         FILE *stream = level >= LOG_INFO ? stdout : stderr;
 
+        pthread_mutex_lock(&logger_mutex);
+
         print_logging_level_str(stream, level);
         fprintf(stream, ": ");
         vfprintf(stream, format, ap);
         fprintf(stream, "\n");
+
+        pthread_mutex_unlock(&logger_mutex);
         va_end(ap);
     }
 }

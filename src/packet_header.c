@@ -27,9 +27,10 @@
 #include <linux/if.h>
 #include <linux/if_ether.h>
 #include <stdio.h>
+#include <string.h>
 
 // decode tuntap header and print information to stdout
-void decode_tuntap_header(byte_t *packet)
+void decode_tuntap_header(const byte_t *packet)
 {
     uint16_t flags = (packet[0] << 8) | (packet[1]);
     uint16_t ether_type = (packet[2] << 8) | (packet[3]);
@@ -37,102 +38,77 @@ void decode_tuntap_header(byte_t *packet)
     printf("Flags: 0x%04x, proto: 0x%04x\n", flags, ether_type);
 }
 
-// decode IP packet and place the destination IP address in *dest (v4 and v6)
-void ip_packet_destaddr(byte_t *packet, uint16_t proto, netroute_t *dest)
+// decode IP packet and place the source/destination IP address
+// in *nroute (v4 and v6)
+void parse_ip_packet(const byte_t *packet, const uint16_t proto,
+    netroute_t *nroute, const bool source)
 {
-    dest->mac = false;
+    nroute->mac = false;
+
     if (proto == ETH_P_IP) {
         struct iphdr *header = (struct iphdr *) packet;
 
-        dest->ip4 = true;
-        dest->addr[0] = (header->daddr >> 24) & 0xff;
-        dest->addr[1] = (header->daddr >> 16) & 0xff;
-        dest->addr[2] = (header->daddr >> 8) & 0xff;
-        dest->addr[3] = (header->daddr) & 0xff;
+        nroute->ip4 = true;
+        uint32_t ip4_addr;
 
-    } else if (proto == ETH_P_IPV6) {
+        if (source) {
+            ip4_addr = header->saddr;
+        } else {
+            ip4_addr = header->daddr;
+        }
+
+        nroute->addr[0] = (ip4_addr >> 24) & 0xff;
+        nroute->addr[1] = (ip4_addr >> 16) & 0xff;
+        nroute->addr[2] = (ip4_addr >> 8) & 0xff;
+        nroute->addr[3] = (ip4_addr) & 0xff;
+    } else {
         struct ipv6hdr *header = (struct ipv6hdr *) packet;
 
-        dest->ip4 = false;
-        for (uint8_t i = 0; i < sizeof(dest->addr); ++i)
-            dest->addr[i] = header->daddr.in6_u.u6_addr8[i];
+        nroute->ip4 = false;
+        byte_t *ip6_addr;
 
-    } else {
-        logger(LOG_ERROR, "Not an IP packet, cannot inspect header");
+        if (source) {
+            ip6_addr = header->saddr.in6_u.u6_addr8;
+        } else {
+            ip6_addr = header->daddr.in6_u.u6_addr8;
+        }
+
+        memcpy(nroute->addr,
+               ip6_addr,
+               sizeof(nroute->addr));
     }
 }
 
-// decode ethernet packet and place the destination mac address in *dest
-void eth_packet_destaddr(byte_t *packet, netroute_t *dest)
+// decode ethernet packet and place the source/destination mac address
+// in *nroute
+void parse_eth_packet(const byte_t *packet, netroute_t *nroute,
+    const bool source)
 {
-    dest->ip4 = false;
-    dest->mac = true;
+    nroute->ip4 = false;
+    nroute->mac = true;
 
-    for (uint8_t i = 0; i < 6; ++i)
-        dest->addr[i] = packet[i];
+    if (source) {
+        memcpy(nroute->addr, packet + 6, 6);
+    } else {
+        memcpy(nroute->addr, packet, 6);
+    }
 }
 
 // decode tuntap packet and network packet header
-// if valid, place the network packet's destination address in *dest
-void packet_destaddr(byte_t *packet, netroute_t *dest)
+// if valid, place the network packet's source/destination
+// address in *nroute
+void parse_packet_addr(byte_t *packet, netroute_t *nroute,
+    const bool source)
 {
-    byte_t *raw_packet = &packet[4];
-
     if (tuntap_tap_mode()) {
-        eth_packet_destaddr(raw_packet, dest);
+        parse_eth_packet(packet + 4, nroute, source);
     } else {
         uint16_t ether_type = (packet[2] << 8) | (packet[3]);
 
-        ip_packet_destaddr(raw_packet, ether_type, dest);
-    }
-}
-
-// decode IP packet and place the source IP address in *dest (v4 and v6)
-void ip_packet_srcaddr(byte_t *packet, uint16_t proto, netroute_t *dest)
-{
-    dest->mac = false;
-    if (proto == ETH_P_IP) {
-        struct iphdr *header = (struct iphdr *) packet;
-
-        dest->ip4 = true;
-        dest->addr[0] = (header->saddr >> 24) & 0xff;
-        dest->addr[1] = (header->saddr >> 16) & 0xff;
-        dest->addr[2] = (header->saddr >> 8) & 0xff;
-        dest->addr[3] = (header->saddr) & 0xff;
-
-    } else if (proto == ETH_P_IPV6) {
-        struct ipv6hdr *header = (struct ipv6hdr *) packet;
-
-        dest->ip4 = false;
-        for (uint8_t i = 0; i < sizeof(dest->addr); ++i)
-            dest->addr[i] = header->saddr.in6_u.u6_addr8[i];
-
-    } else {
-        logger(LOG_ERROR, "Not an IP packet, cannot inspect header");
-    }
-}
-
-// decode ethernet packet and place the source mac address in *dest
-void eth_packet_srcaddr(byte_t *packet, netroute_t *dest)
-{
-    dest->ip4 = false;
-    dest->mac = true;
-
-    for (uint8_t i = 0; i < 6; ++i)
-        dest->addr[i] = packet[i + 6];
-}
-
-// decode tuntap packet and network packet header
-// if valid, place the network packet's source address in *dest
-void packet_srcaddr(byte_t *packet, netroute_t *dest)
-{
-    byte_t *raw_packet = &packet[4];
-
-    if (tuntap_tap_mode()) {
-        eth_packet_srcaddr(raw_packet, dest);
-    } else {
-        uint16_t ether_type = (packet[2] << 8) | (packet[3]);
-
-        ip_packet_srcaddr(raw_packet, ether_type, dest);
+        if (ether_type != ETH_P_IP && ether_type != ETH_P_IPV6) {
+            logger(LOG_ERROR, "Not an IP packet, cannot inspect header");
+            return;
+        }
+        parse_ip_packet(packet + 4, ether_type, nroute, source);
     }
 }

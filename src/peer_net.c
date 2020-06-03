@@ -25,6 +25,7 @@
 #include "logger.h"
 #include "rsa.h"
 #include "encryption.h"
+#include <openssl/aes.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
@@ -48,9 +49,9 @@ void send_data_to_peer(uint8_t frame_hdr_type, byte_t *data, uint32_t data_len,
     if (peer->alive) {
         if (encrypt) {
             if (!peer->authenticated) {
-                logger(LOG_ERROR, "peer %s:%u: not authenticated, cannot encrypt data",
-                                  peer->address,
-                                  peer->port);
+                logger(LOG_INFO, "peer %s:%u: not authenticated, not sending network packet",
+                                 peer->address,
+                                 peer->port);
                 return;
             }
 
@@ -164,12 +165,61 @@ int receive_frame(peer_t *peer, byte_t *buf, uint8_t *header_type, uint32_t *dat
     return total + FRAME_HEADER_SIZE;
 }
 
+void process_netpacket(peer_t *peer, byte_t *data, uint32_t data_len)
+{
+    netroute_t route;
+    byte_t packet_data[FRAME_PAYLOAD_MAXSIZE + AES_BLOCK_SIZE];
+    peer_t *target = NULL;
+
+    int dec_len = aes_decrypt(peer->dec_ctx,
+                              data,
+                              data_len,
+                              packet_data);
+
+    if (dec_len < 0)
+        return;
+
+    data_len = dec_len;
+
+    parse_packet_addr(packet_data, &route, false);
+    if (is_local_route(&route)) {
+        parse_packet_addr(packet_data, &route, true);
+
+        if (!get_peer_route(&route)) {
+            char addr[INET6_ADDRSTRLEN];
+
+            memset(addr, 0, sizeof(addr));
+            get_netroute_addr(&route, addr, sizeof(addr));
+
+            logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
+                              peer->address,
+                              peer->port,
+                              addr);
+
+            add_netroute(&route, &peer->routes);
+        }
+
+        tuntap_write(packet_data, data_len);
+
+    } else if ((target = get_peer_route(&route))) {
+        send_data_to_peer(FRAME_HDR_NETPACKET,
+                          packet_data,
+                          data_len,
+                          true,
+                          target);
+    } else {
+        tuntap_write(packet_data, data_len);
+        broadcast_data_to_peers(FRAME_HDR_NETPACKET,
+                                packet_data,
+                                data_len,
+                                true,
+                                peer);
+    }
+}
+
 int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_len)
 {
     byte_t *data = buf + FRAME_HEADER_SIZE;
-    byte_t dec_data[FRAME_PAYLOAD_MAXSIZE];
-    netroute_t route;
-    peer_t *target = NULL;
 
     switch (header_type) {
         case FRAME_HDR_AUTH:
@@ -204,38 +254,7 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
                 break;
             }
 
-            int dec_len = aes_decrypt(peer->dec_ctx,
-                                      data,
-                                      data_len,
-                                      dec_data);
-
-            if (dec_len < 0)
-                break;
-
-            data_len = dec_len;
-            data = dec_data;
-
-            packet_destaddr(data, &route);
-            if (is_local_route(&route)) {
-                packet_srcaddr(data, &route);
-                if (!get_peer_route(&route)) {
-                    char addr[INET6_ADDRSTRLEN];
-
-                    memset(addr, 0, sizeof(addr));
-                    get_netroute_addr(&route, addr, sizeof(addr));
-                    logger(LOG_DEBUG, "peer %s:%u: adding route: %s",
-                                      peer->address,
-                                      peer->port,
-                                      addr);
-                    add_netroute(&route, &peer->routes);
-                }
-                tuntap_write(data, data_len);
-            } else if ((target = get_peer_route(&route))) {
-                send_data_to_peer(FRAME_HDR_NETPACKET, data, data_len, true, target);
-            } else {
-                tuntap_write(data, data_len);
-                broadcast_data_to_peers(FRAME_HDR_NETPACKET, data, data_len, true, peer);
-            }
+            process_netpacket(peer, data, data_len);
             break;
 
         default:
@@ -296,6 +315,9 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
         return false;
     }
 
+    byte_t aes_key[32];
+    byte_t aes_iv[16];
+
     if (peer->is_client) {
         // Client receives AES key and IV from server
         uint32_t _bufsize = RSA_BUFSIZE(get_daemon_privkey());
@@ -309,11 +331,11 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
 
         dec_len = rsa_decrypt(buf + FRAME_HEADER_SIZE, data_len, dec_buf, get_daemon_privkey());
-        if (dec_len != sizeof(peer->aes_key)) {
+        if (dec_len != sizeof(aes_key)) {
             logger(LOG_ERROR, "Invalid AES key size");
             return false;
         }
-        memcpy(peer->aes_key, dec_buf, sizeof(peer->aes_key));
+        memcpy(aes_key, dec_buf, sizeof(aes_key));
 
         if (receive_frame(peer, buf, &header_type, &data_len) < 0)
             return false;
@@ -322,15 +344,15 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
 
         dec_len = rsa_decrypt(buf + FRAME_HEADER_SIZE, data_len, dec_buf, get_daemon_privkey());
-        if (dec_len != sizeof(peer->aes_iv)) {
+        if (dec_len != sizeof(aes_iv)) {
             logger(LOG_ERROR, "Invalid AES IV size");
             return false;
         }
-        memcpy(peer->aes_iv, dec_buf, sizeof(peer->aes_iv));
+        memcpy(aes_iv, dec_buf, sizeof(aes_iv));
 
     } else {
         // Server generates and sends AES key and IV to client
-        if (RAND_priv_bytes(peer->aes_key, sizeof(peer->aes_key)) != 1) {
+        if (RAND_priv_bytes(aes_key, sizeof(aes_key)) != 1) {
             logger(LOG_ERROR, "peer %s:%u: cannot generate AES key: %s",
                             peer->address,
                             peer->port,
@@ -338,7 +360,7 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
         }
 
-        if (RAND_priv_bytes(peer->aes_iv, sizeof(peer->aes_iv)) != 1) {
+        if (RAND_priv_bytes(aes_iv, sizeof(aes_iv)) != 1) {
             logger(LOG_ERROR, "peer %s:%u: cannot generate AES IV: %s",
                             peer->address,
                             peer->port,
@@ -346,21 +368,24 @@ bool authenticate_peer(peer_t *peer, byte_t *buf)
             return false;
         }
 
-        int enc_len = rsa_encrypt(peer->aes_key, sizeof(peer->aes_key), buf, peer->pubkey);
+        int enc_len = rsa_encrypt(aes_key, sizeof(aes_key), buf, peer->pubkey);
         if (enc_len <= 0)
             return false;
 
         send_data_to_peer(FRAME_HDR_AUTH, buf, enc_len, false, peer);
 
-        enc_len = rsa_encrypt(peer->aes_iv, sizeof(peer->aes_iv), buf, peer->pubkey);
+        enc_len = rsa_encrypt(aes_iv, sizeof(aes_iv), buf, peer->pubkey);
         if (enc_len <= 0)
             return false;
 
         send_data_to_peer(FRAME_HDR_AUTH, buf, enc_len, false, peer);
     }
 
-    peer->enc_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, true);
-    peer->dec_ctx = aes_init_ctx(peer->aes_key, peer->aes_iv, false);
+    peer->enc_ctx = aes_init_ctx(aes_key, aes_iv, true);
+    peer->dec_ctx = aes_init_ctx(aes_key, aes_iv, false);
+
+    memset(aes_key, 0, sizeof(aes_key));
+    memset(aes_iv, 0, sizeof(aes_iv));
 
     if (!peer->enc_ctx || !peer->dec_ctx)
         return false;

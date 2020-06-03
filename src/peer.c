@@ -55,8 +55,6 @@ void initialize_peer(peer_t *peer)
     peer->is_client = false;
     peer->alive = false;
     peer->pubkey = NULL;
-    memset(peer->aes_key, 0, sizeof(peer->aes_key));
-    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
     peer->enc_ctx = NULL;
     peer->dec_ctx = NULL;
     peer->authenticated = false;
@@ -65,13 +63,14 @@ void initialize_peer(peer_t *peer)
 }
 
 // set peer information
-void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
+void set_peer_info(peer_t *peer, const char *address, const uint16_t port,
+    int s, bool is_client)
 {
     pthread_mutex_destroy(&peer->mutex);
     pthread_mutex_init(&peer->mutex, NULL);
     free(peer->address);
-    peer->address = strdup(inet_ntoa(sin->sin_addr));
-    peer->port = sin->sin_port;
+    peer->address = strdup(address);
+    peer->port = port;
     peer->is_client = is_client;
     RSA_free(peer->pubkey);
     peer->pubkey = NULL;
@@ -81,8 +80,6 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
         EVP_CIPHER_CTX_free(peer->dec_ctx);
     peer->enc_ctx = NULL;
     peer->enc_ctx = NULL;
-    memset(peer->aes_key, 0, sizeof(peer->aes_key));
-    memset(peer->aes_iv, 0, sizeof(peer->aes_iv));
     peer->authenticated = false;
     destroy_netroutes(peer->routes);
     peer->routes = NULL;
@@ -91,14 +88,14 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
 }
 
 // allocate and initialize a peer
-peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client)
+peer_t *create_peer(const char *address, const uint16_t port, int s, bool is_client)
 {
     peer_t *peer = malloc(sizeof(peer_t));
 
     if (!peer)
         return NULL;
     initialize_peer(peer);
-    set_peer_info(peer, sin, s, is_client);
+    set_peer_info(peer, address, port, s, is_client);
     return peer;
 }
 
@@ -148,13 +145,13 @@ void destroy_peers(void)
 // add peer to the list, if all slots are free then allocate one
 // if a slot is free (alive == false) it is set to the new peer's
 // information
-peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
+peer_t *add_peer(const char *address, const uint16_t port, int s, bool is_client)
 {
     peer_t *last = peers;
 
     while (last) {
         if (last->alive == false) {
-            set_peer_info(last, sin, s, is_client);
+            set_peer_info(last, address, port, s, is_client);
             return last;
         }
         if (last->next == NULL) {
@@ -164,7 +161,7 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
         }
     }
 
-    peer_t *peer = create_peer(sin, s, is_client);
+    peer_t *peer = create_peer(address, port, s, is_client);
     if (!peers) {
         peers = peer;
     } else {
@@ -225,9 +222,10 @@ void *_peer_connection(void *arg)
 }
 
 // handle a peer connection
-void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
+void peer_connection(const char *address, const uint16_t port, int s,
+    bool is_client, bool block)
 {
-    peer_t *peer = add_peer(sin, s, is_client);
+    peer_t *peer = add_peer(address, port, s, is_client);
     pthread_t peer_thread;
 
     if (!peer) {
@@ -282,22 +280,17 @@ peer_t *get_peer_route(netroute_t *route)
 // connected peers
 void *_broadcast_tuntap_device(UNUSED void *arg)
 {
-    byte_t *buf = malloc(sizeof(byte_t) * FRAME_PAYLOAD_MAXSIZE);
+    byte_t buf[FRAME_PAYLOAD_MAXSIZE];
     ssize_t n = 0;
     netroute_t route;
     peer_t *target = NULL;
-
-    if (!buf) {
-        logger(LOG_CRIT, "Could not allocate memory for *databuf");
-        exit(EXIT_FAILURE);
-    }
 
     route.next = NULL;
     route.mac = false;
     route.ip4 = false;
 
     while ((n = tuntap_read(buf, FRAME_PAYLOAD_MAXSIZE)) > 0) {
-        packet_srcaddr(buf, &route);
+        parse_packet_addr(buf, &route, true);
         if (!is_local_route(&route)) {
             char addr[INET6_ADDRSTRLEN];
 
@@ -307,7 +300,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
             add_netroute(&route, &local_routes);
         }
 
-        packet_destaddr(buf, &route);
+        parse_packet_addr(buf, &route, false);
         if ((target = get_peer_route(&route))) {
             send_data_to_peer(FRAME_HDR_NETPACKET, buf, n, true, target);
         } else {
@@ -315,7 +308,6 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
         }
     }
 
-    free(buf);
     logger(LOG_CRIT, "Local TUN/TAP packets will no longer be broadcasted to peers");
     pthread_exit(NULL);
 }
