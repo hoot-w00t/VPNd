@@ -21,7 +21,12 @@
 #ifndef _VPND_PACKET_HEADER
 #define _VPND_PACKET_HEADER
 
-void packet_srcaddr(byte_t *packet, netroute_t *dest);
-void packet_destaddr(byte_t *packet, netroute_t *dest);
+void decode_tuntap_header(const byte_t *packet);
+void parse_ip_packet(const byte_t *packet, const uint16_t proto,
+    netroute_t *nroute, const bool source);
+void parse_eth_packet(const byte_t *packet, netroute_t *nroute,
+    const bool source);
+void parse_packet_addr(const byte_t *packet, netroute_t *nroute,
+    const bool source);
 
 #endif

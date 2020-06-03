@@ -295,7 +295,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
     route.ip4 = false;
 
     while ((n = tuntap_read(buf, FRAME_PAYLOAD_MAXSIZE)) > 0) {
-        packet_srcaddr(buf, &route);
+        parse_packet_addr(buf, &route, true);
         if (!is_local_route(&route)) {
             char addr[INET6_ADDRSTRLEN];
 
@@ -305,7 +305,7 @@ void *_broadcast_tuntap_device(UNUSED void *arg)
             add_netroute(&route, &local_routes);
         }
 
-        packet_destaddr(buf, &route);
+        parse_packet_addr(buf, &route, false);
         if ((target = get_peer_route(&route))) {
             send_data_to_peer(FRAME_HDR_NETPACKET, buf, n, true, target);
         } else {

@@ -215,9 +215,9 @@ int process_frame(peer_t *peer, byte_t *buf, uint8_t header_type, uint32_t data_
             data_len = dec_len;
             data = dec_data;
 
-            packet_destaddr(data, &route);
+            parse_packet_addr(data, &route, false);
             if (is_local_route(&route)) {
-                packet_srcaddr(data, &route);
+                parse_packet_addr(data, &route, true);
                 if (!get_peer_route(&route)) {
                     char addr[INET6_ADDRSTRLEN];
 
