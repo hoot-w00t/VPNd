@@ -64,17 +64,12 @@ bool compare_netroutes(const netroute_t *r1, const netroute_t *r2)
     if (r1->mac != r2->mac || r1->ip4 != r2->ip4)
         return false;
 
-    if (!r1->mac) {
-        if (r1->ip4) {
-            limit = 4;
-        } else {
-            limit = sizeof(r1->addr);
-        }
-    }
-    for (byte_t i = 0; i < limit; ++i) {
-        if (r1->addr[i] != r2->addr[i])
-            return false;
-    }
+    if (!r1->mac)
+        limit = r1->ip4 ? 4 : sizeof(r1->addr);
+
+    if (memcmp(r1->addr, r2->addr, limit))
+        return false;
+
     return true;
 }
 
@@ -88,8 +83,7 @@ netroute_t *duplicate_netroute(const netroute_t *route)
 
     dupr->mac = route->mac;
     dupr->ip4 = route->ip4;
-    for (byte_t i = 0; i < sizeof(route->addr); ++i)
-        dupr->addr[i] = route->addr[i];
+    memcpy(dupr->addr, route->addr, sizeof(route->addr));
     dupr->next = route->next;
 
     return dupr;
