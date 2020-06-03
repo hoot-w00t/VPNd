@@ -102,19 +102,13 @@ int tcp_server(const bool ip4, const bool ip6, const int backlog)
 {
     if (ip4) {
         tcp4_socket = tcp4_bind(NULL, DEFAULT_PORT, backlog);
-        if (tcp4_socket < 0) {
-            tcp_server_close();
-            return -1;
-        }
-        logger(LOG_INFO, "TCP4 socket listening...");
+        if (tcp4_socket > 0)
+            logger(LOG_INFO, "TCP4 socket listening...");
     }
     if (ip6) {
-        tcp6_socket = tcp6_bind("::1", DEFAULT_PORT, backlog);
-        if (tcp6_socket < 0) {
-            tcp_server_close();
-            return -1;
-        }
-        logger(LOG_INFO, "TCP6 socket listening...");
+        tcp6_socket = tcp6_bind(NULL, DEFAULT_PORT, backlog);
+        if (tcp6_socket > 0)
+            logger(LOG_INFO, "TCP6 socket listening...");
     }
 
     struct pollfd pfds[2];
@@ -192,7 +186,7 @@ int tcp_client(const char *hostname, uint16_t port)
     }
 
     // Connect to remote host
-    logger(LOG_WARN, "Connecting to %s:%u...\n", address, port);
+    logger(LOG_WARN, "Connecting to %s:%u...", address, port);
     if (connect(s, sin, sizeof(struct sockaddr_in6)) == -1) {
         logger(LOG_ERROR, "Could not connect to %s:%u: %s",
                             address,
