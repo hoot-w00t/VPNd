@@ -26,16 +26,34 @@
 #include "logger.h"
 #include "protocol.h"
 #include "rsa.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
 
+void close_vpnd(void)
+{
+    static bool already_closing = false;
+
+    if (already_closing)
+        return;
+
+    already_closing = true;
+
+    tuntap_close();
+    destroy_peers();
+    free_daemon_keys();
+    clear_trusted_keys();
+    free_config_dir();
+}
+
 int vpnd(struct args *args)
 {
     pthread_t broadcast_thread;
 
+    atexit(close_vpnd);
 
     if (!load_daemon_privkey() || !load_daemon_pubkey()) {
         free_daemon_keys();
@@ -43,16 +61,11 @@ int vpnd(struct args *args)
     }
 
     load_trusted_keys();
-    atexit(free_daemon_keys);
-    atexit(clear_trusted_keys);
-
     if (tuntap_open(args->dev, args->tap_mode) == -1)
         return EXIT_FAILURE;
 
     logger(LOG_INFO, "Opened device: %s", tuntap_devname());
-
     execute_script(D_SCRIPT_DEV_UP);
-    atexit(destroy_peers);
 
     broadcast_thread = broadcast_tuntap_device();
     if (args->server) {
@@ -61,8 +74,7 @@ int vpnd(struct args *args)
         tcp_client(args->address, args->port);
     }
 
-    tuntap_close();
-    destroy_peers();
+    close_vpnd();
 
     logger(LOG_WARN, "Waiting for broadcasting thread to end...");
     pthread_cancel(broadcast_thread);

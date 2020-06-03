@@ -57,6 +57,7 @@ int tcp4_bind(const char *bind_address, const uint16_t bind_port,
         return -1;
     }
 
+    // Avoid binding errors after the socket is closed
     setsockopt(s,
                SOL_SOCKET,
                SO_REUSEADDR,
