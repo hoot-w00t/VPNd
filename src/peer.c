@@ -65,13 +65,14 @@ void initialize_peer(peer_t *peer)
 }
 
 // set peer information
-void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
+void set_peer_info(peer_t *peer, const char *address, const uint16_t port,
+    int s, bool is_client)
 {
     pthread_mutex_destroy(&peer->mutex);
     pthread_mutex_init(&peer->mutex, NULL);
     free(peer->address);
-    peer->address = strdup(inet_ntoa(sin->sin_addr));
-    peer->port = sin->sin_port;
+    peer->address = strdup(address);
+    peer->port = port;
     peer->is_client = is_client;
     RSA_free(peer->pubkey);
     peer->pubkey = NULL;
@@ -91,14 +92,14 @@ void set_peer_info(peer_t *peer, struct sockaddr_in *sin, int s, bool is_client)
 }
 
 // allocate and initialize a peer
-peer_t *create_peer(struct sockaddr_in *sin, int s, bool is_client)
+peer_t *create_peer(const char *address, const uint16_t port, int s, bool is_client)
 {
     peer_t *peer = malloc(sizeof(peer_t));
 
     if (!peer)
         return NULL;
     initialize_peer(peer);
-    set_peer_info(peer, sin, s, is_client);
+    set_peer_info(peer, address, port, s, is_client);
     return peer;
 }
 
@@ -148,13 +149,13 @@ void destroy_peers(void)
 // add peer to the list, if all slots are free then allocate one
 // if a slot is free (alive == false) it is set to the new peer's
 // information
-peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
+peer_t *add_peer(const char *address, const uint16_t port, int s, bool is_client)
 {
     peer_t *last = peers;
 
     while (last) {
         if (last->alive == false) {
-            set_peer_info(last, sin, s, is_client);
+            set_peer_info(last, address, port, s, is_client);
             return last;
         }
         if (last->next == NULL) {
@@ -164,7 +165,7 @@ peer_t *add_peer(struct sockaddr_in *sin, int s, bool is_client)
         }
     }
 
-    peer_t *peer = create_peer(sin, s, is_client);
+    peer_t *peer = create_peer(address, port, s, is_client);
     if (!peers) {
         peers = peer;
     } else {
@@ -225,9 +226,10 @@ void *_peer_connection(void *arg)
 }
 
 // handle a peer connection
-void peer_connection(struct sockaddr_in *sin, int s, bool is_client, bool block)
+void peer_connection(const char *address, const uint16_t port, int s,
+    bool is_client, bool block)
 {
-    peer_t *peer = add_peer(sin, s, is_client);
+    peer_t *peer = add_peer(address, port, s, is_client);
     pthread_t peer_thread;
 
     if (!peer) {

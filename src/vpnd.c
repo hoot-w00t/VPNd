@@ -56,7 +56,7 @@ int vpnd(struct args *args)
 
     broadcast_thread = broadcast_tuntap_device();
     if (args->server) {
-        tcp_server(args->address, args->port, 10);
+        tcp_server(true, true, 10);
     } else {
         tcp_client(args->address, args->port);
     }

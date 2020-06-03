@@ -16,139 +16,195 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include "vpnd.h"
 #include "tcp.h"
-#include "peer.h"
 #include "logger.h"
+#include "peer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <poll.h>
 
-static int server_socket = -1;
-
-// create socket and bind it to an address and port
-// returns the file descriptor or -1 in case of an error
-int tcp_bind(const char *bind_address, uint16_t bind_port, int backlog)
-{
-    struct sockaddr_in sin;
-
-    // Initialize sin
-    memset(&sin, 0, sizeof(struct sockaddr_in));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(bind_port);
-    sin.sin_addr.s_addr = inet_addr(bind_address);
-
-    // Create socket
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == -1) {
-        logger(LOG_CRIT, "Could not create server socket: %s", strerror(errno));
-        return -1;
-    }
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int)); // set reuseaddr option
-
-    // Bind to address and port
-    if (bind(server_socket, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
-        logger(LOG_CRIT, "Could not bind to %s:%u: %s", bind_address, bind_port, strerror(errno));
-        close(server_socket);
-        server_socket = -1;
-        return -1;
-    }
-
-    // Start listening to connections
-    if (listen(server_socket, backlog) == -1) {
-        logger(LOG_CRIT, "Could not start listening: %s", strerror(errno));
-        close(server_socket);
-        server_socket = -1;
-        return -1;
-    }
-
-    return server_socket;
-}
+static int tcp4_socket = -1;
+static int tcp6_socket = -1;
 
 // accept an incoming TCP connection on a listening socket
-int tcp_accept_connection(void)
+int tcp_accept_connection(const int s)
 {
-    struct sockaddr sin;
+    char address[INET6_ADDRSTRLEN];
+    uint16_t port = 0;
     socklen_t sin_len = sizeof(struct sockaddr);
-    int peer = -1;
+    struct sockaddr sin;
+    int peer;
 
-    if (server_socket < 0)
-        return -1;
-
-    peer = accept(server_socket, &sin, &sin_len);
-
-    if (peer == -1) {
-        logger(LOG_ERROR, "Connection failed: %s", strerror(errno));
+    memset(address, 0, sizeof(address));
+    if ((peer = accept(s, &sin, &sin_len)) < 0) {
+        logger(LOG_ERROR, "Connection failed: %s",
+                          strerror(errno));
         return -1;
     }
 
-    peer_connection((struct sockaddr_in *) &sin, peer, false, false);
+    if (sin.sa_family == AF_INET6) {
+        struct sockaddr_in6 *conn = (struct sockaddr_in6 *) &sin;
+
+        inet_ntop(AF_INET6,
+                  conn->sin6_addr.__in6_u.__u6_addr8,
+                  address,
+                  sizeof(address));
+
+        port = conn->sin6_port;
+
+    } else {
+        struct sockaddr_in *conn = (struct sockaddr_in *) &sin;
+
+        inet_ntop(AF_INET,
+                  &conn->sin_addr.s_addr,
+                  address,
+                  sizeof(address));
+
+        port = conn->sin_port;
+    }
+
+    peer_connection(address,
+                    port,
+                    peer,
+                    false,
+                    false);
+
     return 0;
 }
 
-// create a TCP server and accept incoming connections
-int tcp_server(const char *bind_address, uint16_t bind_port, int backlog)
-{
-    if (tcp_bind(bind_address, bind_port, backlog) == -1)
-        return -1;
-
-    logger(LOG_INFO, "Listening for incoming connections...");
-    while (server_socket > 0)
-        tcp_accept_connection();
-
-    tcp_server_close();
-    return 0;
-}
-
-// close a TCP server
+// close all TCP servers
 void tcp_server_close(void)
 {
-    if (server_socket > 0) {
-        logger(LOG_INFO, "Closing server...");
-        close(server_socket);
-        server_socket = -1;
+    if (tcp4_socket > 0) {
+        logger(LOG_INFO, "Closing TCP4 server socket...");
+        close(tcp4_socket);
+        tcp4_socket = -1;
     }
+    if (tcp6_socket > 0) {
+        logger(LOG_INFO, "Closing TCP6 server socket...");
+        close(tcp6_socket);
+        tcp6_socket = -1;
+    }
+}
+
+// open TCP listening socket(s)
+int tcp_server(const bool ip4, const bool ip6, const int backlog)
+{
+    if (ip4) {
+        tcp4_socket = tcp4_bind(NULL, DEFAULT_PORT, backlog);
+        if (tcp4_socket < 0) {
+            tcp_server_close();
+            return -1;
+        }
+        logger(LOG_INFO, "TCP4 socket listening...");
+    }
+    if (ip6) {
+        tcp6_socket = tcp6_bind("::1", DEFAULT_PORT, backlog);
+        if (tcp6_socket < 0) {
+            tcp_server_close();
+            return -1;
+        }
+        logger(LOG_INFO, "TCP6 socket listening...");
+    }
+
+    struct pollfd pfds[2];
+    pfds[0].fd = tcp4_socket;
+    pfds[0].events = POLLIN;
+    pfds[1].fd = tcp6_socket;
+    pfds[1].events = POLLIN;
+
+    while (tcp4_socket > 0 || tcp6_socket > 0) {
+        int events = poll(pfds, 2, 1000);
+
+        if (events < 0) {
+            logger(LOG_ERROR, "poll() error: %s",
+                              strerror(errno));
+            tcp_server_close();
+            return -1;
+        } else if (events > 0) {
+            for (int i = 0; i < 2; ++i) {
+                if (pfds[i].revents & POLLIN) {
+                    tcp_accept_connection(pfds[i].fd);
+                }
+            }
+        }
+    }
+    return 0;
 }
 
 // create a TCP connection to a remote server
-int tcp_client(const char *address, uint16_t port)
+int tcp_client(const char *hostname, uint16_t port)
 {
-    struct sockaddr_in sin;
-    in_addr_t _address = 0;
+    struct addrinfo *ai = NULL;
+    int err;
 
-    // Initialize peer_addr
-    memset(&sin, 0, sizeof(sin));
-    if (inet_pton(AF_INET, address, &_address) != 1) {
-        logger(LOG_CRIT, "Invalid IP address: %s", address);
+    if ((err = getaddrinfo(hostname, NULL, NULL, & ai)) != 0) {
+        logger(LOG_ERROR, "%s", gai_strerror(err));
         return -1;
     }
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-    sin.sin_addr.s_addr = inet_addr(address);
+
+    char address[INET6_ADDRSTRLEN];
+    struct sockaddr *sin = ai->ai_addr;
+
+    memset(address, 0, sizeof(address));
+
+    if (ai->ai_family == AF_INET6) {
+        struct sockaddr_in6 *conn = (struct sockaddr_in6 *) sin;
+
+        inet_ntop(AF_INET6,
+                  &conn->sin6_addr.__in6_u.__u6_addr8,
+                  address,
+                  sizeof(address));
+
+        conn->sin6_port = htons(port);
+
+    } else {
+        struct sockaddr_in *conn = (struct sockaddr_in *) sin;
+
+        inet_ntop(AF_INET,
+                  &conn->sin_addr,
+                  address,
+                  sizeof(address));
+
+        conn->sin_port = htons(port);
+    }
 
     // Create socket
-    int s = socket(AF_INET, SOCK_STREAM, 0);
+    int s = socket(ai->ai_family,
+                   SOCK_STREAM,
+                   0);
+
     if (s == -1) {
-        logger(LOG_CRIT, "Could not create client socket: %s", strerror(errno));
+        logger(LOG_CRIT, "Could not create client socket: %s",
+                         strerror(errno));
+        freeaddrinfo(ai);
         return -1;
     }
 
     // Connect to remote host
-    logger(LOG_INFO, "Connecting to %s:%u...\n", address, port);
-    if (connect(s, (struct sockaddr *) &sin, sizeof(sin)) == -1) {
-        logger(LOG_ERROR, "Could not connect to %s:%u: %s", address, port, strerror(errno));
+    logger(LOG_WARN, "Connecting to %s:%u...\n", address, port);
+    if (connect(s, sin, sizeof(struct sockaddr_in6)) == -1) {
+        logger(LOG_ERROR, "Could not connect to %s:%u: %s",
+                            address,
+                            port,
+                            strerror(errno));
         close(s);
+        freeaddrinfo(ai);
         return -1;
     }
 
-    peer_connection(&sin, s, true, true);
+    peer_connection(address, port, s, true, true);
+    freeaddrinfo(ai);
+
     return 0;
 }

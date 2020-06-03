@@ -24,6 +24,8 @@ LDFLAGS	:=	-lpthread -pthread -lssl -lcrypto
 
 SRC	=	src/vpnd.c			\
 		src/args.c			\
+		src/tcp4.c			\
+		src/tcp6.c			\
 		src/tcp.c			\
 		src/interface.c		\
 		src/peer.c			\
