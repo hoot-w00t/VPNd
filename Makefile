@@ -20,7 +20,9 @@ LIBS	=	$(shell pkg-config --libs --cflags libssl libcrypto)
 
 CC	:=	cc
 INCLUDE	:=	-Iinclude
-CFLAGS	:=	-O3 -pipe -W -Wall -Wextra $(INCLUDE) -DGITVER=\"$(GITVER)\"
+OPT_FLAGS	:= -O3
+
+CFLAGS	:=	-W -Wall -Wextra -pipe $(OPT_FLAGS) $(INCLUDE) -DGITVER=\"$(GITVER)\"
 LDFLAGS	:=	-lpthread -pthread $(LIBS)
 
 SRC	=	src/vpnd.c			\
