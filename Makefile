@@ -16,11 +16,12 @@
 
 BINARY	=	vpnd
 GITVER	=	git-$(shell git describe --always --tags --abbrev=10 --dirty)
+LIBS	=	$(shell pkg-config --libs --cflags libssl libcrypto)
 
 CC	:=	cc
 INCLUDE	:=	-Iinclude
 CFLAGS	:=	-O3 -pipe -W -Wall -Wextra $(INCLUDE) -DGITVER=\"$(GITVER)\"
-LDFLAGS	:=	-lpthread -pthread -lssl -lcrypto
+LDFLAGS	:=	-lpthread -pthread $(LIBS)
 
 SRC	=	src/vpnd.c			\
 		src/args.c			\
