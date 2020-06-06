@@ -17,13 +17,24 @@ It is probably flawed, inefficient, and definitely not secure, but it serves as 
 *   [x] Add IPv6 compatibility for network sockets (the VPN tunnel should already work with IPv6 packets)
 
 ## Building the project
-You need `make` and `gcc` to build the project.
+You need `make`, `gcc`, `git`, `pkg-config` and `openssl` to build the project.
 
-The `--vpn-ip` argument depends on the `ip` program to automatically set the IP address/route of the virtual device.
-
-Clone the repository and navigate to it, then execute
+### Installing dependencies
+#### On Debian-based distros
+```sh
+sudo apt update
+sudo apt install make gcc git pkg-config libssl-dev
 ```
+
+#### On Arch Linux
+```sh
+sudo pacman --needed -S make gcc git pkgconf openssl
+```
+
+### Compiling the project using Make
+```sh
+git clone https://github.com/hoot-w00t/VPNd.git
+cd VPNd
 make
 ```
-this should compile the code in a binary named `vpnd`.
-Execute `./vpnd -h` or `./vpnd --help` to learn how to use it.
+You'll get a `vpnd` binary.
