@@ -90,7 +90,7 @@ netroute_t *duplicate_netroute(const netroute_t *route)
 }
 
 // append *route to an array
-void add_netroute(netroute_t *route, netroute_t **array)
+void add_netroute(const netroute_t *route, netroute_t **array)
 {
     netroute_t *dupr = duplicate_netroute(route);
 
@@ -122,4 +122,17 @@ void destroy_netroutes(netroute_t *routes)
         free(current);
         current = next;
     }
+}
+
+// search for *route in *array
+// if found return the matching route
+// otherwise return NULL
+netroute_t *netroute_in_array(const netroute_t *route, netroute_t *array)
+{
+    for (netroute_t *i = array; i != NULL; i = i->next) {
+        if (compare_netroutes(route, i))
+            return i;
+    }
+
+    return NULL;
 }

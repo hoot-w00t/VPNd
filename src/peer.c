@@ -245,33 +245,15 @@ void peer_connection(const char *address, const uint16_t port, int s,
 // return true if this route is the local tuntap device
 bool is_local_route(netroute_t *route)
 {
-    netroute_t *routes = local_routes;
-
-    while (routes) {
-        if (compare_netroutes(route, routes))
-            return true;
-        routes = routes->next;
-    }
-    return false;
+    return netroute_in_array(route, local_routes) ? true : false;
 }
 
 // return peer_t to which the route belongs, or NULL if we do not know this route
 peer_t *get_peer_route(netroute_t *route)
 {
-    peer_t *peer = peers;
-
-    while (peer) {
-        if (peer->alive) {
-            netroute_t *routes = peer->routes;
-
-            while (routes) {
-                if (compare_netroutes(route, routes))
-                    return peer;
-                routes = routes->next;
-            }
-        }
-
-        peer = peer->next;
+    for (peer_t *peer = peers; peer; peer = peer->next) {
+        if (peer->alive && netroute_in_array(route, peer->routes))
+            return peer;
     }
     return NULL;
 }
